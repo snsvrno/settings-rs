@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["snsvrno <snsvrno@tuta.io>"]
 
 [dependencies]
+serde = "1.0.27"
+serde_derive = "1.0.27"
+
+toml = "0.4.5"
