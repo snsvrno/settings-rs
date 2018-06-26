@@ -1,3 +1,33 @@
+//! ***Settingsfile*** is an easy to use settings file access library.
+//!
+//! This library creates an abstract layer on top of [Serde](https://serde.rs/) for easier
+//! read and write access to configuration files encoded in various formats (supports all
+//! serde compatible libraries, [some examples here](https://serde.rs/#data-formats)).
+//!
+//! ## Benefits
+//! ***Settingsfile*** allows you to quickly read and write configuration files by an easy to
+//! use api.
+//!
+//! ```rust
+//! settings_file.get_value("user.name") 
+//! // Some("snsvrno") or None
+//! 
+//! // or 
+//!
+//! settings_file.get_value_or("address.update_server","127.0.0.1") 
+//! // "www.crates.io" or "127.0.0.1"
+//! ```
+//!
+//! ***Settingsfile*** also is built around [Serde](https://serde.rs/) so tons of formats are 
+//! already supported, all you need to do is find a [compatible library](https://serde.rs/#data-formats)
+//! and implement the handful of required traits and you now have a robust, easy to use settings library.
+//!
+//! ## Examples
+//! Look at the two examples, one using 
+//! [TOML](https://github.com/snsvrno/settingsfile-rs/tree/master/tests/testing_with_toml.rs) 
+//! and the other using 
+//! [RON](https://github.com/snsvrno/settingsfile-rs/tree/master/tests/testing_with_ron.rs) 
+//! to see how to get started.
 use std::collections::HashMap;
 
 #[macro_use]
@@ -21,6 +51,7 @@ pub trait Format {
   fn folder(&self) -> String;
   fn from_str(&self,buffer:&str) -> SettingResult;
   fn to_string<T>(&self,object:&T) -> Result<String,Error> where T : serde::ser::Serialize;
+
   // have default implementations
   fn extension(&self) -> Option<String> { None }
 }
@@ -41,6 +72,11 @@ impl<T> File<T> where T : Format {
   //}
 
   pub fn filename(&self) -> String {
+    //! returns the filename for the configuration file
+    //!
+    //! this will either only be [Format::filename()](trait.Format.html) 
+    //! or [Format::filename()](trait.Format.html) + [Format::extension()](trait.Format.html)
+    //! depending on if [Format::extension()](trait.Format.html) is implemented or not.
     match Format::extension(&self.ioconfig) {
       Some(extension) => format!("{}.{}",
         Format::filename(&self.ioconfig),
@@ -52,6 +88,8 @@ impl<T> File<T> where T : Format {
 
   pub fn decode_str(&self,buffer : &str) -> SettingResult {
     //! for testing only, shouldn't be used normally.
+    //!
+    //! decodes a string into an [Setting Type](type.SettingResult.html). Can return an [Error](error/enum.Error.html) on failure. 
     Format::from_str(&self.ioconfig,buffer)
   }
 
@@ -59,6 +97,8 @@ impl<T> File<T> where T : Format {
     where C : serde::ser::Serialize,
   {
     //! for testing only, shouldn't be used normally.
+    //!
+    //! encodes the object to a [String] or [Error](error/enum.Error.html).
     Format::to_string(&self.ioconfig,object)
   }
 }
