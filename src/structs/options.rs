@@ -11,7 +11,7 @@ impl SettingsOptions {
     SettingsOptions {
       extension: None,
       filetype : Filetype::Toml,
-      local_enabled : true
+      local_enabled : false
     }
   }
 }
