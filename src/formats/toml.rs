@@ -7,6 +7,8 @@ use structs::subsetting::Subsetting;
 
 use serde::ser;
 
+pub static extension : &str = "toml";
+
 pub fn from_str(buffer : &str) -> Result<HashMap<String,Subsetting>,Error> {
   let hash : Result<HashMap<String,Subsetting>,toml::de::Error> = toml::from_str(&buffer);
 
