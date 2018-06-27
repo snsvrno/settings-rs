@@ -1,7 +1,9 @@
 extern crate settingsfile;
+use settingsfile::PartsPackage;
 use settingsfile::types::Type;
 use settingsfile::Format;
 use settingsfile::error::Error;
+use settingsfile::settings::Settings;
 
 extern crate toml;
 extern crate serde;
@@ -12,8 +14,10 @@ impl Format for Configuration {
   fn filename(&self) -> String { "settings".to_string() }
   fn folder(&self) -> String { "program_app_folder".to_string() }
 
-  fn from_str(&self,buffer:&str) -> Result<Type,Error> {
-    let result : Result<Type,toml::de::Error> = toml::from_str(&buffer);
+  fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error> 
+    where T : Format + Clone 
+  {
+    let result : Result<PartsPackage,toml::de::Error> = toml::from_str(&buffer);
     match result {
       Ok(result) => Ok(result),
       Err(error) => Err(Error::Error(error.to_string())),
@@ -37,8 +41,10 @@ impl Format for Configuration2 {
   fn folder(&self) -> String { "program_app_folder".to_string() }
   fn extension(&self) -> Option<String> { Some("toml".to_string()) }
 
-  fn from_str(&self,buffer:&str) -> Result<Type,Error> {
-    let result : Result<Type,toml::de::Error> = toml::from_str(&buffer);
+  fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error> 
+    where T : Format + Clone 
+  {
+    let result : Result<PartsPackage,toml::de::Error> = toml::from_str(&buffer);
     match result {
       Ok(result) => Ok(result),
       Err(error) => Err(Error::Error(error.to_string())),
@@ -53,13 +59,11 @@ impl Format for Configuration2 {
   }
 }
 
-
 #[test]
 fn basic_load_config1() {
   let test = settingsfile::File::new(Configuration{});
   assert_eq!(test.filename(),"settings");
 }
-
 
 #[test]
 fn basic_load_config2() {

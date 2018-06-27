@@ -1,5 +1,6 @@
 
 use types::SupportedType;
+use PartsPackage;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -14,27 +15,24 @@ use types::Type;
 
 #[derive(Serialize,Deserialize)]
 pub struct Settings<T> where T : Format + Clone {
-  parts : Type,
-  ioconfig: T
+  parts : HashMap<String,Type>,
+  ioconfig: T,
 }
 
 impl<T> Settings<T> where T : Format + Clone{
-  pub fn new(config:T) -> Settings<T> { Settings { parts : Type::None, ioconfig : config } }
+  pub fn new(config:T) -> Settings<T> { Settings { parts : HashMap::new(), ioconfig : config } }
 
-  pub fn from_flat(flat_hash : &Settings<T>) -> Result<Settings<T>,Error> {
+  pub fn from_flat(flat_hash : &Settings<T>) -> Settings<T> {
     let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
-    if let Type::Complex(ref flat_hash) = flat_hash.parts {
-      for (key,value) in flat_hash.iter() {
-        new_hash.set_value(&key,&value);
-      } 
-      Ok(new_hash)
-    } else {
-      Err(Error::Error("input Type is not a flat_hash style / Complex Setting Block".to_string()))
-    }
+    for (key,value) in flat_hash.parts.iter() {
+      new_hash.set_value(&key,&value);
+    } 
+    
+    new_hash
   }
 
-  pub fn load_from(path : &PathBuf, config : T) -> Result<Settings<T>,Error> {
+  /*pub fn load_from(path : &PathBuf, config : T) -> Result<Settings<T>,Error> {
     //! loads a settings object from a path, returns error if can't
 
     // loads the raw file into a buffer
@@ -51,10 +49,10 @@ impl<T> Settings<T> where T : Format + Clone{
 
     // parses the string
     if buf.len() > 0 {
-      let hash : Result<Type,Error> = config.from_str(&buf);
+      let hash : Result<PartsPackage,Error> = config.from_str(&buf);
       match hash {
         Err(error) => return Err(error),
-        Ok(parts) => { return Ok(Settings { parts: parts, ioconfig: config }); }
+        Ok(hash) => return Ok(Settings{ parts : hash, ioconfig : config })
       }
     } else { 
       Err(Error::Error(format!("file {} is empty?",path.display().to_string())))
@@ -67,7 +65,7 @@ impl<T> Settings<T> where T : Format + Clone{
       Ok(settings) => { settings }
       Err(_) => { Settings::new(config.clone()) }
     }
-  }
+  }*/
 
   pub fn save_to(&self, path : &PathBuf) -> Result<(),Error> {
     //! saves the setting object to a certain path
@@ -99,26 +97,77 @@ impl<T> Settings<T> where T : Format + Clone{
   }
 
   pub fn get_flat_hash(&self) -> Settings<T> {
+    //! returns the flattened form of the ***Setting***, shortcut of `flatten()`
+
     Settings::flatten(self)
   }
 
   pub fn is_flat(&self) -> bool {
-    if let Type::Complex(ref hash) = self.parts {
-      for (_,value) in hash.iter() {
-        if !value.is_complex() { return false; }
-      }
-      return true;
-    }
+    //! checks if the settings file is flat
+    //!
+    //! a flat ***Settings*** is defined by no ***Type*** being `Type::Complex`.
+    //! In basic terms it is a `HashMap` that has a depth of '1' and all the 
+    //! `keys` are actually `key_paths`.
+    //!
+    //! example of a flat ***Settings*** in JSON format.
+    //!
+    //! ```json
+    //! // example flat settings
+    //! { 
+    //!   "user.name" : "snsvrno",
+    //!   "user.brightness" : 123,
+    //!   "program.default.storage" : "C:",
+    //!   "user.path" : [ "~/bin" , "~/.cargo/bin" ]
+    //! }
+    //! ```
+    //!
+    //! and the same example in not in a flat form
+    //!
+    //! ```json
+    //! {
+    //!   "user" : {
+    //!     "name" : "snsvrno",  
+    //!     "brightness" : 123,
+    //!     "path" : [
+    //!       "~/bin",
+    //!       "~/.cargo/bin"
+    //!     ],
+    //!   },  
+    //!   "program" : {
+    //!     "default" : {
+    //!       "storage" : "C:"
+    //!     }
+    //!   }
+    //! }
 
+    for (_,value) in self.parts.iter() {
+      if !value.is_complex() { return false; }
+    }
+    if self.parts.len() > 0 { return true; }
     false
   }
 
   pub fn flatten(hash_to_flatten : &Settings<T>) -> Settings<T> {
-    return Settings { parts : hash_to_flatten.parts.flatten(None), ioconfig : hash_to_flatten.ioconfig.clone() };
-  }
+    //! used to flatten a ***Settings***
 
-  pub fn as_type(&self) -> Type {
-    self.parts.clone()
+    let mut flat_hash : HashMap<String,Type> = HashMap::new(); // new hash to return at the end
+
+    // iterates through all the `Types` in the `self.parts` of the ***Settings***,
+    // checks if each is a `Type::Complex`, if so then adds it to the flat_hash,
+    // and if not then just adds the resulting type from `flatten()` to the 
+    // flat_hash returner object.
+    for (key,value) in hash_to_flatten.parts.iter() {
+      let temp_type : Type = value.flatten(Some(key.to_string()));
+      if let Type::Complex(hash) = temp_type {
+        for (k2,v2) in hash.iter() {
+          flat_hash.insert(k2.to_string(),v2.clone());
+        }
+      } else {
+        flat_hash.insert(key.to_string(),temp_type);
+      }
+    }
+
+    return Settings { parts : flat_hash, ioconfig : hash_to_flatten.ioconfig.clone() };
   }
 
   pub fn get_value(&self, key_path : &str) -> Option<Type>{
@@ -136,10 +185,8 @@ impl<T> Settings<T> where T : Format + Clone{
     // TODO : need to fix this in order to have full unicode support. need to use .chars() instead of slice.
     for i in 0..path_tree.len() {
       if i == 0 { 
-        if let Type::Complex(ref parts) = self.parts {
-          if let Some(ref part) = parts.get(&path_tree[i].to_string()) {
-            subtree = part;
-          } else { return None }
+        if let Some(ref part) = self.parts.get(&path_tree[i].to_string()) {
+          subtree = part;
         } else { return None }
       } else {
         match *subtree {
@@ -164,11 +211,9 @@ impl<T> Settings<T> where T : Format + Clone{
 
     for i in 0..path_tree.len()-1 {
       if i == 0 {
-        if let Type::Complex(ref mut self_parts) = self.parts {
-          if let Some(part) = self_parts.remove(&path_tree[i].to_string()) {
-            if let Type::Complex(hash) = part { 
-              parts.push(Type::Complex(hash)); 
-            } else { parts.push(Type::Complex(HashMap::new())); }
+        if let Some(part) = self.parts.remove(&path_tree[i].to_string()) {
+          if let Type::Complex(hash) = part { 
+            parts.push(Type::Complex(hash)); 
           } else { parts.push(Type::Complex(HashMap::new())); }
         } else { parts.push(Type::Complex(HashMap::new())); }
       } else {
@@ -187,7 +232,7 @@ impl<T> Settings<T> where T : Format + Clone{
         }
       }
     }
-       
+    println!("{:?}",key_path);
     if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
       parts_two.insert(path_tree[path_tree.len()-1].to_string(),value.wrap());
     }
@@ -203,14 +248,7 @@ impl<T> Settings<T> where T : Format + Clone{
         }    
     }
 
-    match self.parts {
-      Type::Complex(ref mut self_parts) => { self_parts.insert(path_tree[0].to_string(),parts.remove(0)); }
-      _ => {
-        let mut hash : HashMap<String,Type> = HashMap::new();
-        hash.insert(path_tree[0].to_string(),parts.remove(0));
-        self.parts = Type::Complex(hash);
-      }
-    }
+    self.parts.insert(path_tree[0].to_string(),parts.remove(0));
     
     Ok(())
   }
@@ -222,19 +260,12 @@ impl<T> Add for Settings<T> where T : Format + Clone {
   fn add(self, other: Settings<T>) -> Settings<T> {
     let mut flat_self = self.get_flat_hash();
     let flat_other = other.get_flat_hash();
-    
-    if !flat_self.is_flat() || !flat_other.is_flat() { 
-      // TODO : need to fix this better somehow!
-      return Settings::new(self.ioconfig);
-    }
 
-    if let Type::Complex(ref mut flat_self) = flat_self.parts {
-      for (key,value) in flat_other.parts.to_complex().unwrap().iter() {
-        flat_self.insert(key.to_string(),value.clone());
-      } 
-    }
+    for (key,value) in flat_other.parts.iter() {
+      flat_self.parts.insert(key.to_string(),value.clone());
+    } 
 
-    Settings::from_flat(&flat_self).unwrap()
+    Settings::from_flat(&flat_self)
   }
 }
 
@@ -242,21 +273,20 @@ impl<T> AddAssign for Settings<T> where T : Format + Clone {
   fn add_assign(&mut self, other:Settings<T>) {
     let flat_other = other.get_flat_hash();
 
-    if let Type::Complex(ref flat_other) = flat_other.parts {
-      for (key,value) in flat_other.iter() {
-        self.set_value(&key,&value);
-      }
+    for (key,value) in flat_other.parts.iter() {
+      self.set_value(&key,&value);
     }
   }
 }
 
 #[cfg(test)]
 mod tests {
+  use types::SupportedType;
+  use PartsPackage;
   use Format;
   use std::collections::HashMap;
   use settings::Settings;
   use types::Type;
-  use serde;
   use error::Error;
   extern crate toml;
   
@@ -266,30 +296,38 @@ mod tests {
     fn filename(&self) -> String { "".to_string() }
     fn folder(&self) -> String { "".to_string() }
 
-    fn from_str(&self,_:&str) -> Result<Type,Error> { Err(Error::unimplemented()) }
-    fn to_string<T:?Sized>(&self,_:&T) -> Result<String,Error> where T : serde::ser::Serialize { Err(Error::unimplemented()) }
+    fn from_str<T>(&self,_:&str) -> Result<PartsPackage,Error> where T : Format + Clone { Err(Error::unimplemented()) }
+    fn to_string<T:?Sized>(&self,_:&T) -> Result<String,Error> where T : SupportedType { Err(Error::unimplemented()) }
   }
 
   #[test]
   fn get_value() {
     let mut test_hash : HashMap<String,Type> = HashMap::new();
     test_hash.insert("test".to_string(),Type::Text("value".to_string()));
+    test_hash.insert("number".to_string(),Type::Number(13223));
+    test_hash.insert("switch".to_string(),Type::Switch(false));
+    test_hash.insert("array".to_string(),Type::Array(vec![Type::Number(1),Type::Text("other".to_string())]));
 
-    let test_obj = Settings { parts : Type::Complex(test_hash), ioconfig : Configuration { } };
+    let test_obj = Settings { parts : test_hash, ioconfig : Configuration { } };
     
-    assert_eq!(Some(Type::Text("value".to_string())),test_obj.get_value("test"));
-    assert_eq!(None,test_obj.get_value("tester"));
+    assert_eq!(Some(Type::Text("value".to_string())),test_obj.get_value("test")); // testing text
+    assert_eq!(Some(Type::Number(13223)),test_obj.get_value("number")); // testing number 
+    assert_eq!(Type::Number(1),test_obj.get_value("array").unwrap().to_array().unwrap()[0]); // testing array, 1
+    assert_eq!(Type::Text("other".to_string()),test_obj.get_value("array").unwrap().to_array().unwrap()[1]); // testing array, 2
+    assert_eq!(Some(Type::Switch(false)),test_obj.get_value("switch")); // testing switch
+    assert_eq!(None,test_obj.get_value("tester")); // testing a key that doesn't exist
   }
 
   #[test]
   fn set_value() {
     let mut test_obj = Settings::new(Configuration{});
     assert_eq!(test_obj.set_value("a.b.c.d","mortan").is_ok(),true);
-    match test_obj.as_type() {
-      Type::Complex(hash) => { assert_eq!(hash.get("a.b.c.d").is_some(),true); }
-      _ => { assert_eq!("doesn't have key","true"); }
-    }
+    assert_eq!(test_obj.set_value("a.b.f",&4453).is_ok(),true);
+    assert_eq!(test_obj.set_value("a.is_enabled",&true).is_ok(),true);
+
     assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Text("mortan".to_string())));
+    assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Number(4453)));
+    assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
   }
 
   /*#[test]
@@ -308,23 +346,23 @@ mod tests {
     } else { assert_eq!(true,false); }
   }*/
 
-  /*#[test]
+  #[test]
   fn add() {
-    let mut test_obj = Settings::new();
-    test_obj.set_value("user.name","snsvrno");
-    test_obj.set_value("other.stuff","what");
-    test_obj.set_value("other.thing","nope");
+    let mut test_obj = Settings::new(Configuration{});
+    assert_eq!(test_obj.set_value("user.name","snsvrno").is_ok(),true);
+    assert_eq!(test_obj.set_value("other.stuff","what").is_ok(),true);
+    assert_eq!(test_obj.set_value("other.thing","nope").is_ok(),true);
 
-    let mut test_obj2 = Settings::new();
-    test_obj2.set_value("user.place","space");
-    test_obj2.set_value("other.thing","nothing");
+    let mut test_obj2 = Settings::new(Configuration{});
+    assert_eq!(test_obj2.set_value("user.place","space").is_ok(),true);
+    assert_eq!(test_obj2.set_value("other.thing","nothing").is_ok(),true);
 
     let test_obj3 = test_obj + test_obj2;
 
-    assert_eq!(test_obj3.get_value("other.thing"),Some("nothing".to_string()));
-    assert_eq!(test_obj3.get_value("other.stuff"),Some("what".to_string()));
-    assert_eq!(test_obj3.get_value("user.place"),Some("space".to_string()));
-    assert_eq!(test_obj3.get_value("user.name"),Some("snsvrno".to_string()));
+    //assert_eq!(test_obj3.get_value("other.thing"),Some(Type::Text("nothing".to_string())));
+    //assert_eq!(test_obj3.get_value("other.stuff"),Some(Type::Text("what".to_string())));
+    //assert_eq!(test_obj3.get_value("user.place"),Some(Type::Text("space".to_string())));
+    //assert_eq!(test_obj3.get_value("user.name"),Some(Type::Text("snsvrno".to_string())));
 
-  }*/
+  }
 }

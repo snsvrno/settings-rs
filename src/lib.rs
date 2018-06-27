@@ -33,12 +33,14 @@
 extern crate serde_derive;
 extern crate serde;
 
-pub mod error; use error::Error;
-pub mod types; use types::Type;
-pub mod settings;
+use types::SupportedType;
+use std::collections::HashMap;
 
-//pub type Setting = HashMap<String,Type>;
-//pub type SettingResult = Result<Setting,Error>;
+pub mod types; use types::Type;
+pub mod error; use error::Error;
+pub mod settings; use settings::Settings;
+
+pub type PartsPackage = HashMap<String,Type>;
 
 pub struct File<T> where T : Format + Clone {
   ioconfig : T 
@@ -48,19 +50,11 @@ pub trait Format {
   // need to be implemented
   fn filename(&self) -> String;
   fn folder(&self) -> String;
-  fn from_str(&self,buffer:&str) -> Result<Type,Error>;
-  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : serde::ser::Serialize;
+  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : SupportedType;
+  fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error> where T : Format + Clone;
 
   // have default implementations
   fn extension(&self) -> Option<String> { None }
-  fn transcode<T:?Sized>(&self,object:&T) -> Result<Type,Error> 
-    where T : serde::ser::Serialize, 
-  {
-    match self.to_string(object) {
-      Err(error) => Err(error),
-      Ok(string) => self.from_str(&string)
-    }
-  }
 }
 
 impl<T> File<T> where T : Format + Clone{
@@ -68,9 +62,9 @@ impl<T> File<T> where T : Format + Clone{
     File { ioconfig : config }
   }
 
-  pub fn get_value(&self,key_path:&str) {
-    println!("{}",key_path);
-  }
+  //pub fn get_value(&self,key_path:&str) {
+  //  println!("{}",key_path);
+  //}
 
   //pub fn set_value<B>(&self,key_path:&str,value : &B) -> String
   //  where B : for <'de> serde::de::Deserialize<'de> 
@@ -93,7 +87,7 @@ impl<T> File<T> where T : Format + Clone{
     }
   }
 
-  pub fn decode_str(&self,buffer : &str) -> Result<Type,Error> {
+  pub fn decode_str(&self,buffer : &str) -> Result<PartsPackage,Error> {
     //! for testing only, shouldn't be used normally.
     //!
     //! decodes a string into an [Setting Type](type.SettingResult.html). Can return an [Error](error/enum.Error.html) on failure. 
@@ -101,7 +95,7 @@ impl<T> File<T> where T : Format + Clone{
   }
 
   pub fn encode_to_string<C>(&self,object:&C) -> Result<String,Error> 
-    where C : serde::ser::Serialize,
+    where C : SupportedType,
   {
     //! for testing only, shouldn't be used normally.
     //!
