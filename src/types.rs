@@ -12,66 +12,20 @@ pub enum Type {
 }
 
 impl Type {
-  pub fn is_text(&self) -> bool {
-    match *self {
-      Type::Text(_) => true,
-      _ => false
-    }
-  }
-  pub fn is_switch(&self) -> bool {
-    match *self {
-      Type::Switch(_) => true,
-      _ => false
-    }
-  }
-  pub fn is_number(&self) -> bool {
-    match *self {
-      Type::Number(_) => true,
-      _ => false
-    }
-  }
-  pub fn is_complex(&self) -> bool {
-    match *self {
-      Type::Complex(_) => true,
-      _ => false
-    }
-  }
-  pub fn is_array(&self) -> bool {
-    match *self {
-      Type::Array(_) => true,
-      _ => false
-    }
-  }
-  pub fn to_text(&self) -> Option<String> {
-    match *self {
-      Type::Text(ref text) => Some(text.to_string()),
-      _ => None
-    }
-  }
-  pub fn to_switch(&self) -> Option<bool> {
-    match *self {
-      Type::Switch(ref boolean) => Some(boolean.clone()),
-      _ => None
-    }
-  }
-  pub fn to_number(&self) -> Option<u32> {
-    match *self {
-      Type::Number(ref numb) => Some(numb.clone()),
-      _ => None
-    }
-  }
-  pub fn to_complex(&self) -> Option<HashMap<String,Type>> {
-    match *self {
-      Type::Complex(ref hash) => Some(hash.clone()),
-      _ => None
-    }
-  }
-  pub fn to_array(&self) -> Option<Vec<Type>> {
-    match *self {
-      Type::Array(ref array) => Some(array.clone()),
-      _ => None
-    }
-  }
+  pub fn is_text(&self) -> bool { if let &Type::Text(_) = self { true } else { false } }
+  pub fn is_switch(&self) -> bool { if let &Type::Switch(_) = self { true } else { false } }
+  pub fn is_number(&self) -> bool { if let &Type::Number(_) = self { true } else { false } }
+  pub fn is_complex(&self) -> bool { if let &Type::Complex(_) = self { true } else { false } }
+  pub fn is_array(&self) -> bool { if let &Type::Array(_) = self { true } else { false } }
+  pub fn is_none(&self) -> bool { if let &Type::None = self { true } else { false } }
+
+  pub fn to_text(&self) -> Option<String> { if let &Type::Text(ref inner) = self { Some(inner.clone()) } else { None } }
+  pub fn to_switch(&self) -> Option<bool> { if let &Type::Switch(ref inner) = self { Some(inner.clone()) } else { None } }
+  pub fn to_number(&self) -> Option<u32> { if let &Type::Number(ref inner) = self { Some(inner.clone()) } else { None } }
+  pub fn to_complex(&self) -> Option<HashMap<String,Type>> { if let &Type::Complex(ref inner) = self { Some(inner.clone()) } else { None } }
+  pub fn to_array(&self) -> Option<Vec<Type>> { if let &Type::Array(ref inner) = self { Some(inner.clone()) } else { None } }
+
+  pub fn move_it(self) -> Type { self }
 
   pub fn flatten(&self , parent_key : Option<String>) -> Type {
     match self {
@@ -96,3 +50,53 @@ impl Type {
     }
   }
 }
+
+pub trait SupportedType {
+  fn wrap(&self) -> Type;
+}
+
+impl SupportedType for String {
+  fn wrap(&self) -> Type { Type::Text(self.clone()) }
+}
+
+impl SupportedType for bool {
+  fn wrap(&self) -> Type { Type::Switch(self.clone()) }
+}
+
+impl SupportedType for u32 {
+  fn wrap(&self) -> Type { Type::Number(self.clone()) }
+}
+
+impl SupportedType for HashMap<String,Type> {
+  fn wrap(&self) -> Type { Type::Complex(self.clone()) }
+}
+
+impl SupportedType for Vec<Type> {
+  fn wrap(&self) -> Type { Type::Array(self.clone()) }
+}
+
+impl SupportedType for Type {
+  fn wrap(&self) -> Type { self.clone() }
+}
+
+impl<'a> SupportedType for &'a Type {
+  fn wrap(&self) -> Type { 
+    match *self {
+      &Type::Text(ref inner) => Type::Text(inner.clone()),
+      &Type::Switch(ref inner) => Type::Switch(inner.clone()),
+      &Type::Number(ref inner) => Type::Number(inner.clone()),
+      &Type::Array(ref inner) => Type::Array(inner.clone()),
+      &Type::Complex(ref inner) => Type::Complex(inner.clone()),
+      &Type::None => Type::None,
+    }
+  }  
+}
+
+impl SupportedType for str {
+  fn wrap(&self) -> Type { Type::Text(self.to_string()) }
+}
+
+impl<'a> SupportedType for &'a str {
+  fn wrap(&self) -> Type { Type::Text(self.to_string()) }
+}
+

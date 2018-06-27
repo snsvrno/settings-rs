@@ -4,7 +4,7 @@ pub enum Error {
 }
 
 impl Error {
-  pub fn unimplemneted() -> Error {
-    Error::Error("Unimplemented".to_string())
+  pub fn unimplemented() -> Error {
+    Error::Error("unimplemented".to_string())
   }
 }

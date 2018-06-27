@@ -1,4 +1,5 @@
 
+use types::SupportedType;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
 use std::path::PathBuf;
@@ -10,8 +11,6 @@ use Format;
 //use SettingResult;
 use error::Error;
 use types::Type;
-
-use serde;
 
 #[derive(Serialize,Deserialize)]
 pub struct Settings<T> where T : Format + Clone {
@@ -158,11 +157,11 @@ impl<T> Settings<T> where T : Format + Clone{
   }
 
   pub fn set_value<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
-    where A : serde::ser::Serialize,
+    where A : SupportedType ,
   {
     let mut parts : Vec<Type> = Vec::new();
     let path_tree : Vec<&str> = key_path.split(".").collect();
-    
+
     for i in 0..path_tree.len()-1 {
       if i == 0 {
         if let Type::Complex(ref mut self_parts) = self.parts {
@@ -171,7 +170,7 @@ impl<T> Settings<T> where T : Format + Clone{
               parts.push(Type::Complex(hash)); 
             } else { parts.push(Type::Complex(HashMap::new())); }
           } else { parts.push(Type::Complex(HashMap::new())); }
-        }
+        } else { parts.push(Type::Complex(HashMap::new())); }
       } else {
         let index = parts.len()-1;
         let mut push_me : Option<Type> = None;
@@ -188,13 +187,9 @@ impl<T> Settings<T> where T : Format + Clone{
         }
       }
     }
-    
+       
     if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
-      // solution is to seralize and then deserialize this back in order to get the type.
-      match self.ioconfig.transcode(value) {
-        Err(error) => return Err(error),
-        Ok(value) =>  { parts_two.insert(path_tree[path_tree.len()-1].to_string(),value); }
-      }
+      parts_two.insert(path_tree[path_tree.len()-1].to_string(),value.wrap());
     }
 
     
@@ -208,8 +203,13 @@ impl<T> Settings<T> where T : Format + Clone{
         }    
     }
 
-    if let Type::Complex(ref mut self_parts) = self.parts {
-      self_parts.insert(path_tree[0].to_string(),parts.remove(0));
+    match self.parts {
+      Type::Complex(ref mut self_parts) => { self_parts.insert(path_tree[0].to_string(),parts.remove(0)); }
+      _ => {
+        let mut hash : HashMap<String,Type> = HashMap::new();
+        hash.insert(path_tree[0].to_string(),parts.remove(0));
+        self.parts = Type::Complex(hash);
+      }
     }
     
     Ok(())
@@ -258,6 +258,7 @@ mod tests {
   use types::Type;
   use serde;
   use error::Error;
+  extern crate toml;
   
   #[derive(Clone)]
   struct Configuration { }
@@ -265,8 +266,8 @@ mod tests {
     fn filename(&self) -> String { "".to_string() }
     fn folder(&self) -> String { "".to_string() }
 
-    fn from_str(&self,_buffer:&str) -> Result<Type,Error> { Err(Error::unimplemneted()) }
-    fn to_string<T:?Sized>(&self,_object:&T) -> Result<String,Error> where T : serde::ser::Serialize { Err(Error::unimplemneted()) }
+    fn from_str(&self,_:&str) -> Result<Type,Error> { Err(Error::unimplemented()) }
+    fn to_string<T:?Sized>(&self,_:&T) -> Result<String,Error> where T : serde::ser::Serialize { Err(Error::unimplemented()) }
   }
 
   #[test]
@@ -282,8 +283,12 @@ mod tests {
 
   #[test]
   fn set_value() {
-    let mut test_obj = Settings::new(Configuration { });
-    test_obj.set_value("a.b.c.d","mortan");
+    let mut test_obj = Settings::new(Configuration{});
+    assert_eq!(test_obj.set_value("a.b.c.d","mortan").is_ok(),true);
+    match test_obj.as_type() {
+      Type::Complex(hash) => { assert_eq!(hash.get("a.b.c.d").is_some(),true); }
+      _ => { assert_eq!("doesn't have key","true"); }
+    }
     assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Text("mortan".to_string())));
   }
 
