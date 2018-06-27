@@ -28,7 +28,6 @@
 //! and the other using 
 //! [RON](https://github.com/snsvrno/settingsfile-rs/tree/master/tests/testing_with_ron.rs) 
 //! to see how to get started.
-use std::collections::HashMap;
 
 #[macro_use]
 extern crate serde_derive;
@@ -36,27 +35,35 @@ extern crate serde;
 
 pub mod error; use error::Error;
 pub mod types; use types::Type;
+pub mod settings;
 
-pub type Setting = HashMap<String,Type>;
-pub type SettingResult = Result<Setting,Error>;
+//pub type Setting = HashMap<String,Type>;
+//pub type SettingResult = Result<Setting,Error>;
 
-pub struct File<T> where T : Format {
+pub struct File<T> where T : Format + Clone {
   ioconfig : T 
 }
 
 pub trait Format {
-
   // need to be implemented
   fn filename(&self) -> String;
   fn folder(&self) -> String;
-  fn from_str(&self,buffer:&str) -> SettingResult;
-  fn to_string<T>(&self,object:&T) -> Result<String,Error> where T : serde::ser::Serialize;
+  fn from_str(&self,buffer:&str) -> Result<Type,Error>;
+  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : serde::ser::Serialize;
 
   // have default implementations
   fn extension(&self) -> Option<String> { None }
+  fn transcode<T:?Sized>(&self,object:&T) -> Result<Type,Error> 
+    where T : serde::ser::Serialize, 
+  {
+    match self.to_string(object) {
+      Err(error) => Err(error),
+      Ok(string) => self.from_str(&string)
+    }
+  }
 }
 
-impl<T> File<T> where T : Format {
+impl<T> File<T> where T : Format + Clone{
   pub fn new(config : T) -> File<T> {
     File { ioconfig : config }
   }
@@ -86,7 +93,7 @@ impl<T> File<T> where T : Format {
     }
   }
 
-  pub fn decode_str(&self,buffer : &str) -> SettingResult {
+  pub fn decode_str(&self,buffer : &str) -> Result<Type,Error> {
     //! for testing only, shouldn't be used normally.
     //!
     //! decodes a string into an [Setting Type](type.SettingResult.html). Can return an [Error](error/enum.Error.html) on failure. 
