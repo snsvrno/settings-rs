@@ -57,20 +57,38 @@ A convience type that is used to shorten the required return type for the `Forma
 
 ### Required Functions
 
-#### `fn filename(&self) -> String`
+#### `filename()`
+
+```rust
+fn filename(&self) -> String
+```
+
 Should return the file name of the configuration file; ~/.application_name/***file_name***.extension
 
-#### `fn folder(&self) -> String`
+The entire name + extension can be used here as well if you don't want to use the [extension()](extension) function.
+
+####  `folder()`
+
+```rust
+fn folder(&self) -> String
+```
+
 Should return the folder name of the configuration file with respect to the %user_directory%; ~/***.application_name***/file_name.extension
 
-#### `fn to_string<T>(&self, object:T) -> Result<String,Error> where T : settingsfile::SupportedType + serde::de::Serialize`
+#### `to_string()`
+
+```rust
+fn to_string<T>(&self, object:T) -> Result<String,Error> 
+  where T : settingsfile::SupportedType + serde::de::Serialize
+```
+
 Returns the seralized form of the passed in `object`. Because this uses ***Serde.rs*** the `object` must have the `serde::de::Serialzie` trait, and must also implement the `settingsfile::SupportedType` trait.
 
 Typically this is just a wrapped passthrough to the serde libray you are using. Example using [toml-rs](https://github.com/alexcrichton/toml-rs):
 
 ```rust
 fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error>
-  where T : SupportedType + serde::ser::Serialize,
+  where T : settingsfile::SupportedType + serde::ser::Serialize,
 {
   match toml::ser::to_string(object) {
     Ok(string) => Ok(string),
@@ -79,7 +97,12 @@ fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error>
 }
 ```
 
-#### `fn from_str<T>(&self, buffer:&str) -> Result<PartsPackage,Error>`
+#### `from_str()`
+
+```rust
+fn from_str<T>(&self, buffer:&str) -> Result<PartsPackage,Error>
+  where T : Clone + settingsfile::Format
+```
 
 Returns a deserialized form of a string buffer into a Rust object.
 
@@ -100,7 +123,12 @@ let result : Result<PartsPackage,toml::de::Error> = toml::from_str(&buffer);
 
 ### Optional Functions
 
-#### `fn extension(&self) -> Option<String>`
-Should return the extension of the configuration file; ~/.application_name/file_name.***extension***
+#### `extension()`
+
+```rust
+fn extension(&self) -> Option<String>
+```
+
+Should return the extension of the configuration file; ~/.application_name/file_name.***extension*** 
 
 If not defined then no extension will be used for the file.
