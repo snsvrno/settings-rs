@@ -45,25 +45,70 @@ fn main() {
 }
 ```
 
+## Types
+
+### `pub type PartsPackage = HashMap<String,Type>`
+
+A convience type that is used to shorten the required return type for the `Format` trait implemnetations. This does not need to be used by the users of this library.
+
+## Traits
+
+***Settingsfile-rs*** requires an empty struct with the `Format` trait implemented in order to create a `Settingsfile::File`.
+
+### Required Functions
+
+#### `fn filename(&self) -> String`
+Should return the file name of the configuration file; ~/.application_name/***file_name***.extension
+
+#### `fn folder(&self) -> String`
+Should return the folder name of the configuration file with respect to the %user_directory%; ~/***.application_name***/file_name.extension
+
+#### `fn to_string<T>(&self, object:T) -> Result<String,Error> where T : settingsfile::SupportedType + serde::de::Serialize`
+Returns the seralized form of the passed in `object`. Because this uses ***Serde.rs*** the `object` must have the `serde::de::Serialzie` trait, and must also implement the `settingsfile::SupportedType` trait.
+
+Typically this is just a wrapped passthrough to the serde libray you are using. Example using [toml-rs](https://github.com/alexcrichton/toml-rs):
+
+```rust
+fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error>
+  where T : SupportedType + serde::ser::Serialize,
+{
+  match toml::ser::to_string(object) {
+    Ok(string) => Ok(string),
+    Err(error) => Err(Error::Error(error.to_string()))
+  }
+}
+```
+
+#### `fn from_str<T>(&self, buffer:&str) -> Result<PartsPackage,Error>`
+
+Returns a deserialized form of a string buffer into a Rust object.
+
+Typically this is just aw rapped passthrough to the serde library you are using. Example using [toml-rs](https://github.com/alexcrichton/toml-rs):
+
+```rust
+fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error>
+  where T : Format + Clone
+{
+let result : Result<PartsPackage,toml::de::Error> = toml::from_str(&buffer);
+  match result {
+    Ok(result) => Ok(result),
+    Err(error) => Err(Error::Error(error.to_string())),
+  }
+}
+```
+
+
+### Optional Functions
+
+#### `fn extension(&self) -> Option<String>`
+Should return the extension of the configuration file; ~/.application_name/file_name.***extension***
+
+If not defined then no extension will be used for the file.
+
+```
+
 ## Some Facts about `Settingsfile-rs`
 
 - ***Settingsfile*** reads and write file immediately, it is primarily designed for CLI apps, but can be used for all types. Any `set_value()` operation is handled immediately by writing all the changes to the file.
 - ***Settingsfile*** can read files from the defined `folder` (`%user_folder%/%folder%`) and from the local working directory of the CLI app (if option `local_enabled` is true).
 - 'Dot notation' is used to read and write settings files, which allows for easy access without worrying about what else is inside the file.
-
-## Dot Notation Rules
-
-Ruse for `Dot Notation`.
-
-```json
-"user" : {
-  "name" : "snsvrno"
-}
-```
-
-```toml
-[user]
-name = "snsvrno"
-```
-
-1. A `value` is access by all the parents connected by '.', called a `key_path`. The value of `snsvrno` is represented with a `key_path` of `user.name`.
