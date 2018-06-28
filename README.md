@@ -47,7 +47,7 @@ fn main() {
 
 ## Types
 
-### `pub type PartsPackage = HashMap<String,Type>`
+#### `pub type PartsPackage = HashMap<String,Type>`
 
 A convience type that is used to shorten the required return type for the `Format` trait implemnetations. This does not need to be used by the users of this library.
 
@@ -104,11 +104,3 @@ let result : Result<PartsPackage,toml::de::Error> = toml::from_str(&buffer);
 Should return the extension of the configuration file; ~/.application_name/file_name.***extension***
 
 If not defined then no extension will be used for the file.
-
-```
-
-## Some Facts about `Settingsfile-rs`
-
-- ***Settingsfile*** reads and write file immediately, it is primarily designed for CLI apps, but can be used for all types. Any `set_value()` operation is handled immediately by writing all the changes to the file.
-- ***Settingsfile*** can read files from the defined `folder` (`%user_folder%/%folder%`) and from the local working directory of the CLI app (if option `local_enabled` is true).
-- 'Dot notation' is used to read and write settings files, which allows for easy access without worrying about what else is inside the file.
