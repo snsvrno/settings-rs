@@ -50,7 +50,7 @@ pub trait Format {
   // need to be implemented
   fn filename(&self) -> String;
   fn folder(&self) -> String;
-  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : SupportedType;
+  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : SupportedType + serde::ser::Serialize;
   fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error> where T : Format + Clone;
 
   // have default implementations
@@ -91,15 +91,15 @@ impl<T> File<T> where T : Format + Clone{
     //! for testing only, shouldn't be used normally.
     //!
     //! decodes a string into an [Setting Type](type.SettingResult.html). Can return an [Error](error/enum.Error.html) on failure. 
-    Format::from_str(&self.ioconfig,buffer)
+    Format::from_str::<T>(&self.ioconfig,buffer)
   }
 
   pub fn encode_to_string<C>(&self,object:&C) -> Result<String,Error> 
-    where C : SupportedType,
+    where C : SupportedType + serde::ser::Serialize,
   {
     //! for testing only, shouldn't be used normally.
     //!
     //! encodes the object to a [String] or [Error](error/enum.Error.html).
-    Format::to_string(&self.ioconfig,object)
+    Format::to_string::<C>(&self.ioconfig,object)
   }
 }
