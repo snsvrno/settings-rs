@@ -65,7 +65,7 @@ fn filename(&self) -> String
 
 Should return the file name of the configuration file; ~/.application_name/***file_name***.extension
 
-The entire name + extension can be used here as well if you don't want to use the [extension()](extension) function.
+The entire name + extension can be used here as well if you don't want to use the [extension()](#extension) function.
 
 ####  `folder()`
 
