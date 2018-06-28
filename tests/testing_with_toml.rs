@@ -81,7 +81,7 @@ fn decoding_and_reencoding() {
 
   let decoded_hash = test.decode_str(&test_string).unwrap();
   assert_eq!(decoded_hash.get("database").unwrap().to_text().unwrap(),"192.168.1.1");
-  assert_eq!(decoded_hash.get("other").unwrap().to_number().unwrap(),12332);
+  assert_eq!(decoded_hash.get("other").unwrap().to_int().unwrap(),12332);
   assert_eq!(decoded_hash.get("nextone").unwrap().to_switch().unwrap(),true);
 
   let encoded_hash = test.encode_to_string(&decoded_hash).unwrap();

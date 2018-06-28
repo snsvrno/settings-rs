@@ -304,15 +304,15 @@ mod tests {
   fn get_value() {
     let mut test_hash : HashMap<String,Type> = HashMap::new();
     test_hash.insert("test".to_string(),Type::Text("value".to_string()));
-    test_hash.insert("number".to_string(),Type::Number(13223));
+    test_hash.insert("number".to_string(),Type::Int(13223));
     test_hash.insert("switch".to_string(),Type::Switch(false));
-    test_hash.insert("array".to_string(),Type::Array(vec![Type::Number(1),Type::Text("other".to_string())]));
+    test_hash.insert("array".to_string(),Type::Array(vec![Type::Float(1.23),Type::Text("other".to_string())]));
 
     let test_obj = Settings { parts : test_hash, ioconfig : Configuration { } };
     
     assert_eq!(Some(Type::Text("value".to_string())),test_obj.get_value("test")); // testing text
-    assert_eq!(Some(Type::Number(13223)),test_obj.get_value("number")); // testing number 
-    assert_eq!(Type::Number(1),test_obj.get_value("array").unwrap().to_array().unwrap()[0]); // testing array, 1
+    assert_eq!(Some(Type::Int(13223)),test_obj.get_value("number")); // testing number 
+    assert_eq!(Type::Float(1.23),test_obj.get_value("array").unwrap().to_array().unwrap()[0]); // testing array, 1
     assert_eq!(Type::Text("other".to_string()),test_obj.get_value("array").unwrap().to_array().unwrap()[1]); // testing array, 2
     assert_eq!(Some(Type::Switch(false)),test_obj.get_value("switch")); // testing switch
     assert_eq!(None,test_obj.get_value("tester")); // testing a key that doesn't exist
@@ -326,7 +326,7 @@ mod tests {
     assert_eq!(test_obj.set_value("a.is_enabled",&true).is_ok(),true);
 
     assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Text("mortan".to_string())));
-    assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Number(4453)));
+    assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
     assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
   }
 

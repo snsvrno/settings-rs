@@ -8,7 +8,7 @@
 //! ***Settingsfile*** allows you to quickly read and write configuration files by an easy to
 //! use api.
 //!
-//! ```rust
+//! 
 //! settings_file.get_value("user.name") 
 //! // Some("snsvrno") or None
 //! 
@@ -16,7 +16,7 @@
 //!
 //! settings_file.get_value_or("address.update_server","127.0.0.1") 
 //! // "www.crates.io" or "127.0.0.1"
-//! ```
+//! 
 //!
 //! ***Settingsfile*** also is built around [Serde](https://serde.rs/) so tons of formats are 
 //! already supported, all you need to do is find a [compatible library](https://serde.rs/#data-formats)
@@ -50,7 +50,7 @@ pub trait Format {
   // need to be implemented
   fn filename(&self) -> String;
   fn folder(&self) -> String;
-  fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error> where T : SupportedType + serde::ser::Serialize;
+  fn to_string<T>(&self,object:&T) -> Result<String,Error> where T : SupportedType + serde::ser::Serialize;
   fn from_str<T>(&self,buffer:&str) -> Result<PartsPackage,Error> where T : Format + Clone;
 
   // have default implementations
