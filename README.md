@@ -1,41 +1,48 @@
 # Settingsfile-rs
-A library for easily accessing settings and configuration files.
+A library for easily accessing settings and configuration files using [Serde](https://serde.rs/).
 
 ## Brief 
-***Settingsfile-rs*** attempts to abstract away defining, parsing, and saving configuration files for cli and other programs. Currently ***TOML*** is the only supported format but ***JSON*** and ***INI*** is planned.
+***Settingsfile-rs*** attempts to abstract away defining, parsing, and saving configuration files for cli and other programs.
 
 ## Usage
 Add ***Settingsfile-rs*** to your `Cargo.toml` file.
 
 ```TOML
 [dependencies]
-...
-settingsfile = "0.1.0"
-...
+settingsfile = "^0.2"
 ```
 
-Then create a new instance of the ***Settings*** struct defining where and how you want to access the settings / configuration.
+Then create a dummy struct and implement the `Clone` + `Format` trait and then create a new `File`, you can use `#[derive(Clone)]` for `Clone`.
 
 ```rust
-extern crate settingsfile; use settingsfile::Settings;
+extern crate settingsfile;
+// ...
 
-...
+struct Configuration { }
+impl Format for Configuration {
+ // implement the functions you need ...
+}
 
-  let settings = Settings::new(".config","settings.toml");
+fn main() {
+  // ...
 
+  // create the `File`
+  let settings = Settings::new(Configuration{});
+
+  // reading a value from the settings.
   match settings.get_value("user.name") {
     Ok(user_name) => println!("{}",user_name),
     Err(error) => println!("user.name is not defined."),
   }
 
-  // or 
-
+  // reading a value and supplying a default in case it doesn't exist or 
   println!("{}",settings.get_value_or("user.name","username is not defined"));
 
   // and saving data is just as easy.
-
   settings.set_value("user.name","snsvrno");
-
+  
+  // ...
+}
 ```
 
 ## Some Facts about `Settingsfile-rs`
@@ -46,7 +53,7 @@ extern crate settingsfile; use settingsfile::Settings;
 
 ## Dot Notation Rules
 
-Quick primer in the style of `dot notation` used by ***Settingsfile-rs***. Using the following examples
+Ruse for `Dot Notation`.
 
 ```json
 "user" : {
