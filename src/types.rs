@@ -59,6 +59,10 @@ pub trait SupportedType {
   fn wrap(&self) -> Type;
 }
 
+impl SupportedType for () {
+  fn wrap(&self) -> Type { Type::None }
+}
+
 impl SupportedType for String {
   fn wrap(&self) -> Type { Type::Text(self.clone()) }
 }

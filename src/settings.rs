@@ -1,15 +1,12 @@
 
 use types::SupportedType;
-use PartsPackage;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
 use std::path::PathBuf;
 use std::collections::HashMap;
 use std::fs::{File,create_dir_all};
 
-//use Setting;
 use Format;
-//use SettingResult;
 use error::Error;
 use types::Type;
 
@@ -20,37 +17,38 @@ pub struct Settings<T> where T : Format + Clone {
 }
 
 impl<T> Settings<T> where T : Format + Clone{
+
+  // initalizers //////////////////////////////////////////////////////////////////////////////////
+
   pub fn new(config:T) -> Settings<T> { Settings { parts : HashMap::new(), ioconfig : config } }
 
   pub fn from_flat(flat_hash : &Settings<T>) -> Settings<T> {
     let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
     for (key,value) in flat_hash.parts.iter() {
-      new_hash.set_value(&key,&value);
+      let _ = new_hash.set_value(&key,&value);
     } 
     
     new_hash
   }
 
-  /*pub fn load_from(path : &PathBuf, config : T) -> Result<Settings<T>,Error> {
-    //! loads a settings object from a path, returns error if can't
+  // io - filesystem functions //////////////////////////////////////////////////////////////////
 
+  pub fn load_from(path : &PathBuf, config : T) -> Result<Settings<T>,Error> {
     // loads the raw file into a buffer
     let mut buf : String = String::new();
     match File::open(&path) {
       Err(error) => return Err(Error::Error(error.to_string())),
       Ok(mut file) => { 
-        match file.read_to_string(&mut buf) {
-          Err(error) => return Err(Error::Error(error.to_string())),
-          Ok(_) => { },
+        if let Err(error) = file.read_to_string(&mut buf) {
+          return Err(Error::Error(error.to_string()));
         } 
       }
     }
 
     // parses the string
     if buf.len() > 0 {
-      let hash : Result<PartsPackage,Error> = config.from_str(&buf);
-      match hash {
+      match Format::from_str::<T>(&config,&buf) {
         Err(error) => return Err(error),
         Ok(hash) => return Ok(Settings{ parts : hash, ioconfig : config })
       }
@@ -58,6 +56,7 @@ impl<T> Settings<T> where T : Format + Clone{
       Err(Error::Error(format!("file {} is empty?",path.display().to_string())))
     }
   }
+
   pub fn load_from_or_empty(path : &PathBuf, config : T) -> Settings<T> {
     //! loads a new setting object from a path, or creates an empty object it path doesn't exist
 
@@ -65,7 +64,7 @@ impl<T> Settings<T> where T : Format + Clone{
       Ok(settings) => { settings }
       Err(_) => { Settings::new(config.clone()) }
     }
-  }*/
+  }
 
   pub fn save_to(&self, path : &PathBuf) -> Result<(),Error> {
     //! saves the setting object to a certain path
@@ -96,79 +95,7 @@ impl<T> Settings<T> where T : Format + Clone{
     }
   }
 
-  pub fn get_flat_hash(&self) -> Settings<T> {
-    //! returns the flattened form of the ***Setting***, shortcut of `flatten()`
-
-    Settings::flatten(self)
-  }
-
-  pub fn is_flat(&self) -> bool {
-    //! checks if the settings file is flat
-    //!
-    //! a flat ***Settings*** is defined by no ***Type*** being `Type::Complex`.
-    //! In basic terms it is a `HashMap` that has a depth of '1' and all the 
-    //! `keys` are actually `key_paths`.
-    //!
-    //! example of a flat ***Settings*** in JSON format.
-    //!
-    //! ```json
-    //! // example flat settings
-    //! { 
-    //!   "user.name" : "snsvrno",
-    //!   "user.brightness" : 123,
-    //!   "program.default.storage" : "C:",
-    //!   "user.path" : [ "~/bin" , "~/.cargo/bin" ]
-    //! }
-    //! ```
-    //!
-    //! and the same example in not in a flat form
-    //!
-    //! ```json
-    //! {
-    //!   "user" : {
-    //!     "name" : "snsvrno",  
-    //!     "brightness" : 123,
-    //!     "path" : [
-    //!       "~/bin",
-    //!       "~/.cargo/bin"
-    //!     ],
-    //!   },  
-    //!   "program" : {
-    //!     "default" : {
-    //!       "storage" : "C:"
-    //!     }
-    //!   }
-    //! }
-
-    for (_,value) in self.parts.iter() {
-      if !value.is_complex() { return false; }
-    }
-    if self.parts.len() > 0 { return true; }
-    false
-  }
-
-  pub fn flatten(hash_to_flatten : &Settings<T>) -> Settings<T> {
-    //! used to flatten a ***Settings***
-
-    let mut flat_hash : HashMap<String,Type> = HashMap::new(); // new hash to return at the end
-
-    // iterates through all the `Types` in the `self.parts` of the ***Settings***,
-    // checks if each is a `Type::Complex`, if so then adds it to the flat_hash,
-    // and if not then just adds the resulting type from `flatten()` to the 
-    // flat_hash returner object.
-    for (key,value) in hash_to_flatten.parts.iter() {
-      let temp_type : Type = value.flatten(Some(key.to_string()));
-      if let Type::Complex(hash) = temp_type {
-        for (k2,v2) in hash.iter() {
-          flat_hash.insert(k2.to_string(),v2.clone());
-        }
-      } else {
-        flat_hash.insert(key.to_string(),temp_type);
-      }
-    }
-
-    return Settings { parts : flat_hash, ioconfig : hash_to_flatten.ioconfig.clone() };
-  }
+  // io - object functions ///////////////////////////////////////////////////////////////////
 
   pub fn get_value(&self, key_path : &str) -> Option<Type>{
     if let Some(raw_part) = self.get_raw(&key_path) {
@@ -252,7 +179,86 @@ impl<T> Settings<T> where T : Format + Clone{
     
     Ok(())
   }
+
+  // flatten related functions //////////////////////////////////////////////////////
+
+  pub fn get_flat_hash(&self) -> Settings<T> {
+    //! returns the flattened form of the ***Setting***, shortcut of `flatten()`
+
+    Settings::flatten(self)
+  }
+
+  pub fn is_flat(&self) -> bool {
+    //! checks if the settings file is flat
+    //!
+    //! a flat ***Settings*** is defined by no ***Type*** being `Type::Complex`.
+    //! In basic terms it is a `HashMap` that has a depth of '1' and all the 
+    //! `keys` are actually `key_paths`.
+    //!
+    //! example of a flat ***Settings*** in JSON format.
+    //!
+    //! ```json
+    //! // example flat settings
+    //! { 
+    //!   "user.name" : "snsvrno",
+    //!   "user.brightness" : 123,
+    //!   "program.default.storage" : "C:",
+    //!   "user.path" : [ "~/bin" , "~/.cargo/bin" ]
+    //! }
+    //! ```
+    //!
+    //! and the same example in not in a flat form
+    //!
+    //! ```json
+    //! {
+    //!   "user" : {
+    //!     "name" : "snsvrno",  
+    //!     "brightness" : 123,
+    //!     "path" : [
+    //!       "~/bin",
+    //!       "~/.cargo/bin"
+    //!     ],
+    //!   },  
+    //!   "program" : {
+    //!     "default" : {
+    //!       "storage" : "C:"
+    //!     }
+    //!   }
+    //! }
+
+    for (_,value) in self.parts.iter() {
+      if !value.is_complex() { return false; }
+    }
+    if self.parts.len() > 0 { return true; }
+    false
+  }
+
+  pub fn flatten(hash_to_flatten : &Settings<T>) -> Settings<T> {
+    //! used to flatten a ***Settings***
+
+    let mut flat_hash : HashMap<String,Type> = HashMap::new(); // new hash to return at the end
+
+    // iterates through all the `Types` in the `self.parts` of the ***Settings***,
+    // checks if each is a `Type::Complex`, if so then adds it to the flat_hash,
+    // and if not then just adds the resulting type from `flatten()` to the 
+    // flat_hash returner object.
+    for (key,value) in hash_to_flatten.parts.iter() {
+      let temp_type : Type = value.flatten(Some(key.to_string()));
+      if let Type::Complex(hash) = temp_type {
+        for (k2,v2) in hash.iter() {
+          flat_hash.insert(k2.to_string(),v2.clone());
+        }
+      } else {
+        flat_hash.insert(key.to_string(),temp_type);
+      }
+    }
+
+    return Settings { parts : flat_hash, ioconfig : hash_to_flatten.ioconfig.clone() };
+  }
+
 }
+
+// other implementations /////////////////////////////////////////////////////////////////
 
 impl<T> Add for Settings<T> where T : Format + Clone {
   type Output = Settings<T>;
@@ -274,10 +280,12 @@ impl<T> AddAssign for Settings<T> where T : Format + Clone {
     let flat_other = other.get_flat_hash();
 
     for (key,value) in flat_other.parts.iter() {
-      self.set_value(&key,&value);
+      let _ = self.set_value(&key,&value);
     }
   }
 }
+
+// tests ////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
 mod tests {
@@ -359,10 +367,10 @@ mod tests {
 
     let test_obj3 = test_obj + test_obj2;
 
-    //assert_eq!(test_obj3.get_value("other.thing"),Some(Type::Text("nothing".to_string())));
-    //assert_eq!(test_obj3.get_value("other.stuff"),Some(Type::Text("what".to_string())));
-    //assert_eq!(test_obj3.get_value("user.place"),Some(Type::Text("space".to_string())));
-    //assert_eq!(test_obj3.get_value("user.name"),Some(Type::Text("snsvrno".to_string())));
+    assert_eq!(test_obj3.get_value("other.thing"),Some(Type::Text("nothing".to_string())));
+    assert_eq!(test_obj3.get_value("other.stuff"),Some(Type::Text("what".to_string())));
+    assert_eq!(test_obj3.get_value("user.place"),Some(Type::Text("space".to_string())));
+    assert_eq!(test_obj3.get_value("user.name"),Some(Type::Text("snsvrno".to_string())));
 
   }
 }
