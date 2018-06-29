@@ -2,9 +2,8 @@
 use types::SupportedType;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
-use std::path::PathBuf;
 use std::collections::HashMap;
-use std::fs::{File,create_dir_all};
+use std::fs::File;
 
 use Format;
 use error::Error;
@@ -34,16 +33,11 @@ impl<T> Settings<T> where T : Format + Clone{
 
   // io - filesystem functions //////////////////////////////////////////////////////////////////
 
-  pub fn load_from(path : &PathBuf, config : T) -> Result<Settings<T>,Error> {
+  pub fn load_from(mut file : File, config : T) -> Result<Settings<T>,Error> {
     // loads the raw file into a buffer
     let mut buf : String = String::new();
-    match File::open(&path) {
-      Err(error) => return Err(Error::Error(error.to_string())),
-      Ok(mut file) => { 
-        if let Err(error) = file.read_to_string(&mut buf) {
-          return Err(Error::Error(error.to_string()));
-        } 
-      }
+    if let Err(error) = file.read_to_string(&mut buf) {
+      return Err(Error::Error(error.to_string()));
     }
 
     // parses the string
@@ -53,43 +47,28 @@ impl<T> Settings<T> where T : Format + Clone{
         Ok(hash) => return Ok(Settings{ parts : hash, ioconfig : config })
       }
     } else { 
-      Err(Error::Error(format!("file {} is empty?",path.display().to_string())))
+      Err(Error::Error(format!("file is empty?")))
     }
   }
 
-  pub fn load_from_or_empty(path : &PathBuf, config : T) -> Settings<T> {
+  pub fn load_from_or_empty(file : File, config : T) -> Settings<T> {
     //! loads a new setting object from a path, or creates an empty object it path doesn't exist
 
-    match Settings::load_from(&path,config.clone()) {
+    match Settings::load_from(file,config.clone()) {
       Ok(settings) => { settings }
       Err(_) => { Settings::new(config.clone()) }
     }
   }
 
-  pub fn save_to(&self, path : &PathBuf) -> Result<(),Error> {
+  pub fn save_to(&self, mut file : File) -> Result<(),Error> {
     //! saves the setting object to a certain path
 
     match self.ioconfig.to_string(&self.parts){
       Err(error) => return Err(error),
-      Ok(settings_string) => { 
-        // creates folder if doen't exist
-        if let Some(path) = path.parent() {
-          if !path.exists() { 
-            if let Err(error) = create_dir_all(&path) {
-              return Err(Error::Error(error.to_string()));
-            }
-          }
-        }
-
-        let file = File::create(path);
-        match file {
+      Ok(settings_string) => {
+        match file.write_all(settings_string.as_bytes()) {
           Err(error) => return Err(Error::Error(error.to_string())),
-          Ok(mut file) => {
-            match file.write_all(settings_string.as_bytes()) {
-              Err(error) => return Err(Error::Error(error.to_string())),
-              Ok(_) => { return Ok(()); }
-            }
-          }
+          Ok(_) => { return Ok(()); }
         }
       }
     }

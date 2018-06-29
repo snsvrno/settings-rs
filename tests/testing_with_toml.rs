@@ -8,6 +8,7 @@ use settingsfile::settings::Settings;
 
 extern crate toml;
 extern crate serde;
+extern crate tempfile;
 
 #[derive(Clone)]
 struct Configuration { }
@@ -62,19 +63,19 @@ impl Format for Configuration2 {
 
 #[test]
 fn basic_load_config1() {
-  let test = settingsfile::File::new(Configuration{});
+  let test = settingsfile::Settingsfile::new(Configuration{});
   assert_eq!(test.filename(),"settings");
 }
 
 #[test]
 fn basic_load_config2() {
-  let test = settingsfile::File::new(Configuration2{});
+  let test = settingsfile::Settingsfile::new(Configuration2{});
   assert_eq!(test.filename(),"settings.toml");
 }
 
 #[test]
 fn decoding_and_reencoding() {
-  let test = settingsfile::File::new(Configuration{});
+  let test = settingsfile::Settingsfile::new(Configuration{});
   let test_string = r#"database = "192.168.1.1"
   other = 12332
   nextone = true"#;

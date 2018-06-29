@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 extern crate ron;
 extern crate serde;
+extern crate tempfile;
 
 #[derive(Clone)]
 struct Configuration { }
@@ -45,7 +46,7 @@ impl Format for Configuration {
 
 #[test]
 fn decoding_and_reencoding() {
-  let test = settingsfile::File::new(Configuration{});
+  let test = settingsfile::Settingsfile::new(Configuration{});
   let test_string = r#"{
     "boolean": true,
     "float": 8.2

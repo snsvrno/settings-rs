@@ -33,6 +33,7 @@
 extern crate serde_derive;
 extern crate serde;
 
+use std::fs::{File,create_dir_all};
 use std::path::PathBuf;
 use types::SupportedType;
 use std::collections::HashMap;
@@ -44,7 +45,7 @@ pub mod settings; use settings::Settings;
 
 pub type PartsPackage = HashMap<String,Type>;
 
-pub struct File<T> where T : Format + Clone {
+pub struct Settingsfile<T> where T : Format + Clone {
   ioconfig : T 
 }
 
@@ -60,12 +61,12 @@ pub trait Format {
   fn extension(&self) -> Option<String> { None }
 }
 
-impl<T> File<T> where T : Format + Clone{
+impl<T> Settingsfile<T> where T : Format + Clone{
   
   // constructors ////////////////////////////////////////////////
 
-  pub fn new(config : T) -> File<T> {
-    File { ioconfig : config }
+  pub fn new(config : T) -> Settingsfile<T> {
+    Settingsfile { ioconfig : config }
   }
 
   // io functions ////////////////////////////////////////////////
@@ -111,20 +112,24 @@ impl<T> File<T> where T : Format + Clone{
         match settings.set_value(&key_path,value) {
           Err(error) => { return Err(error); },
           Ok(_) => {
-            match local {
-              true => {
-                match self.path_local() {
-                  Err(error) => return Err(error),
-                  Ok(path) => settings.save_to(&path)
-                }
-              },
-              false => {
-                match self.path_global() {
-                  Err(error) => return Err(error),
-                  Ok(path) => settings.save_to(&path)
+            // the path if either local or global
+            match if local { self.path_local() } else { self.path_global() } {
+              Err(error) => return Err(error),
+              Ok(path) => {
+                if path.exists() {
+                  match File::open(path) {
+                    Err(error) => return Err(Error::wrap(error)),
+                    Ok(open_file) => return settings.save_to(open_file),
+                  }
+                } else {
+                  if let Err(error) = create_dir_all(&path) { return Err(Error::wrap(error)); }
+                  match File::create(&path) {
+                    Err(error) => return Err(Error::wrap(error)),
+                    Ok(created_file) => return settings.save_to(created_file)
+                  }
                 }
               }
-            } 
+            }
           }
         }
       }
@@ -214,28 +219,15 @@ impl<T> File<T> where T : Format + Clone{
       Err(error) => { return Err(error); },
       Ok(path) => {
         match path.exists() {
-          false => Ok(Settings::new(self.ioconfig.clone())),
-          true => Settings::load_from(&path,self.ioconfig.clone())
+          false => { return Ok(Settings::new(self.ioconfig.clone())); },
+          true => {
+            match File::open(&path) {
+              Err(error) => return Err(Error::Error(error.to_string())),
+              Ok(file) => return Settings::load_from(file,self.ioconfig.clone()),
+            } 
+          }
         }
       }
     }
-  }
-
-  // functions for testing purposes only /////////////////////////
-
-  pub fn decode_str(&self,buffer : &str) -> Result<PartsPackage,Error> {
-    //! for testing only, shouldn't be used normally.
-    //!
-    //! decodes a string into an [Setting Type](type.SettingResult.html). Can return an [Error](error/enum.Error.html) on failure. 
-    Format::from_str::<T>(&self.ioconfig,buffer)
-  }
-
-  pub fn encode_to_string<C>(&self,object:&C) -> Result<String,Error> 
-    where C : SupportedType + serde::ser::Serialize,
-  {
-    //! for testing only, shouldn't be used normally.
-    //!
-    //! encodes the object to a [String] or [Error](error/enum.Error.html).
-    Format::to_string::<C>(&self.ioconfig,object)
   }
 }
