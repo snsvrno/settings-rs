@@ -21,6 +21,7 @@ Each configuration can store properties in a tree, with multiple branches, here 
     "options" : [ "green", "auto-break" ]
   }
 }
+```
 
 As you can see, you can organize different settings by their function, and you can have multiple types used, so numbers, lists, or booleans.
 
@@ -116,7 +117,9 @@ The entire name + extension can be used here as well if you don't want to use th
 fn folder(&self) -> String
 ```
 
-Should return the folder name of the configuration file with respect to the %user_directory%; ~/***application_name***/file_name.extension
+Should return the folder name of the configuration file with respect to the %user_directory%; ~/.***application_name***/file_name.extension
+
+The '.' isn't automatically added, and you would need to include it if desired. If you want to nest into folders, you can do that too using either '/' or '\\'; it will be converted and parsed per platform.
 
 #### `to_string()`
 
