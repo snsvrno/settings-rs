@@ -11,6 +11,7 @@ extern crate serde;
 mod traits;
 pub use traits::supportedtype::SupportedType;
 pub use traits::format::Format;
+pub use traits::format::SettingsRaw;
 // public structs
 mod structs;
 pub use structs::settings::Settings;

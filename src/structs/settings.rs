@@ -10,10 +10,14 @@ use std::fs::File;
 use failure::Error;
 
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Clone)]
 pub struct Settings<T> where T : Format + Clone {
     // contains all the data. a hashmap of Type(s)
     parts : HashMap<String,Type>,
+    // a non-editable array to allow for easy iteration, 
+    // is regenerated on manipulation, contains the dot
+    // location keys of everything in the array
+    keys : Vec<String>,
     // the information of IO, where this file is located
     // and general details about the format.
     ioconfig: T,
@@ -28,6 +32,7 @@ impl<T> Settings<T> where T : Format + Clone {
         //! Creates an empty `Settings` from a configuration
         Settings { 
             parts : HashMap::new(), 
+            keys : Vec::new(),
             ioconfig : config
         } 
     }
@@ -40,12 +45,33 @@ impl<T> Settings<T> where T : Format + Clone {
         let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
         for (key,value) in flat_hash.parts.iter() {
-            // @Unimplemented do something with error / results when
+            // FIXME: do something with error / results when
             // setting a value here from a flat settings.
             let _ = new_hash.set_value(&key,&value);
         } 
         
         new_hash
+    }
+
+    fn generate_keys(hash : &HashMap<String,Type>) -> Vec<String> {
+        //! creates a vector array of strings which are all the keys
+        //! inside the input hash. The intent of this is to have a vec
+        //! of keys along with the data so we can easiy iterate and keep
+        //! track of where we are without having to worry about looking 
+        //! track and regenerating the hash every iterator used.
+        
+        let mut keys : Vec<String> = Vec::new();
+
+        let complex_type = Type::Complex(hash.clone());
+
+        // assuming this will always work because we are creating a complex, 
+        // and flattening a complex should always result in another complex
+        // so this should be 100% safe to do (unwrap).
+        for (k,v) in complex_type.flatten(None).to_complex().unwrap() {
+            keys.push(k);
+        }
+
+        keys
     }
 
     // io - filesystem functions //////////////////////////////////////////////////////////////////
@@ -63,9 +89,15 @@ impl<T> Settings<T> where T : Format + Clone {
         // parses the string
         if buf.len() > 0 {
             let hash = Format::from_str::<T>(&config,&buf)?;
-            Ok(Settings{ parts : hash, ioconfig : config })
+            Ok(Settings{ 
+                parts : hash, 
+                // TODO: fix the problem with referencing trates causing error E0283
+                //  keys : Settings::generate_keys(&hash), 
+                keys : Vec::new(), 
+                ioconfig : config 
+            })
         } else { 
-            Ok(Settings{ parts: HashMap::new(), ioconfig : config })
+            Ok(Settings{ parts: HashMap::new(), keys: Vec::new(), ioconfig : config })
         }
     }
 
@@ -96,23 +128,28 @@ impl<T> Settings<T> where T : Format + Clone {
     // io - object functions ///////////////////////////////////////////////////////////////////
     // interactions with the `Settings` struct data
 
-    pub fn get_value(&self, key_path : &str) -> Option<Type>{
-        //! looks for a `key_path` in dot notation and returns an `Option` 
-        //! containing the value if it exists.
+    pub fn get_value_absolute(&self, key_path : &str) -> Option<Type> {
+        //! normally you should always use `get_value`, as it properly splits
+        //! the key_path to get the correct value in the tree.
+        //! if you are working with a flattend `Settings` then `get_value`
+        //! will not work as it will attempt to split the key and it will find 
+        //! nothing, this function will _NEVER_ split the key
         
-        match self.get_raw(&key_path) {
-            Some(part) => { Some(part.clone()) },
-            None => { None },
+        if let Some(result) = self.parts.get(key_path) {
+            return Some(result.clone());
+        } else {
+            return None;
         }
     }
 
-    pub fn get_raw(&self, key_path : &str) -> Option<Type> {
-        //! WHY DOES THIS EXIST?
-
+    pub fn get_value(&self, key_path : &str) -> Option<Type> {
+        //! looks for a `key_path` in dot notation and returns an `Option` 
+        //! containing the value if it exists.
+        
         let path_tree : Vec<&str> = key_path.split(".").collect();
         let mut subtree : &Type = &Type::Text("Empty".to_string());
 
-        // TODO : need to fix this in order to have full unicode support. need to use .chars() instead of slice.
+        // TODO: need to fix this in order to have full unicode support. need to use .chars() instead of slice.
         for i in 0..path_tree.len() {
             if i == 0 { 
                 if let Some(ref part) = self.parts.get(&path_tree[i].to_string()) {
@@ -162,7 +199,7 @@ impl<T> Settings<T> where T : Format + Clone {
                 }
             }
         }
-        println!("{:?}",key_path);
+
         if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
             parts_two.insert(path_tree[path_tree.len()-1].to_string(),value.wrap());
         }
@@ -179,8 +216,22 @@ impl<T> Settings<T> where T : Format + Clone {
         }
 
         self.parts.insert(path_tree[0].to_string(),parts.remove(0));
+
+        // needs to recalculate the keys, so that if we are adding
+        // a new value to a new key location it can be iterated about
+        // TODO: fix the issue with Trait reference
+        // self.keys = Settings::generate_keys(&self.parts);
         
         Ok(())
+    }
+
+    pub fn delete_key(&self, key_path : &str) -> Option<Type> {
+        //! deletes the key and returns the current value, 
+        //! returns none if the key didn't exist.
+         
+         // FIXME: Implement this
+         
+        None
     }
 
     // flatten related functions //////////////////////////////////////////////////////
@@ -271,10 +322,12 @@ impl<T> Settings<T> where T : Format + Clone {
 
         Settings { 
             parts : flat_hash, 
+            // TODO: another issue with traits, fix and then return the bottom line
+            //   keys : Settings::generate_keys(&flat_hash),
+            keys : Vec::new(),
             ioconfig : hash_to_flatten.ioconfig.clone() 
         }
     }
-
 }
 
 // other implementations /////////////////////////////////////////////////////////////////
@@ -317,3 +370,109 @@ impl<T> AddAssign for Settings<T> where T : Format + Clone {
 }
 
 // tests ////////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod tests {
+    use SupportedType;
+    use Format;
+    use SettingsRaw;
+    use Type;
+    use Settings;
+
+    use failure::Error;
+    use std::collections::HashMap;
+
+    // Dummy configuration, just enough to get it working.
+    #[derive(Clone)]
+    struct Configuration { }
+    impl Format for Configuration {
+        fn filename(&self) -> String { "".to_string() }
+        fn folder(&self) -> String { "".to_string() }
+
+        fn from_str<T>(&self,_:&str) -> Result<SettingsRaw,Error> where T : Format + Clone { 
+            Ok(HashMap::<String,Type>::new())
+        }
+        fn to_string<T:?Sized>(&self,_:&T) -> Result<String,Error> where T : SupportedType { 
+            Ok("unimplemented".to_string())
+        }
+    }
+
+
+    #[test]
+    fn set_and_get_value() {
+        //! confirms set and get functionality, that basic reading and writing works
+        
+        let mut test_obj = Settings::new(Configuration{});
+        assert_eq!(test_obj.set_value("a.b.c.d","mortan").is_ok(),true);
+        assert_eq!(test_obj.set_value("a.b.f",&4453).is_ok(),true);
+        assert_eq!(test_obj.set_value("a.is_enabled",&true).is_ok(),true);
+
+        assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Text("mortan".to_string())));
+        assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
+        assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
+    }
+
+        #[test]
+    fn add() {
+        //! confirms addition of two settings works.
+        //! the only current (maybe) issues with this is that it consumes the 
+        //! `Settings` during the operations
+        
+        let mut test_obj = Settings::new(Configuration{});
+        assert_eq!(test_obj.set_value("other.count",&23).is_ok(),true);
+        assert_eq!(test_obj.set_value("other.thing",&false).is_ok(),true);
+
+        let mut test_obj2 = Settings::new(Configuration{});
+        assert!(test_obj2.set_value("user.place","space").is_ok());
+        assert!(test_obj2.set_value("other.thing",&132.23).is_ok());
+
+        let test_obj3 = test_obj.clone() + test_obj2.clone();
+
+        assert_eq!(test_obj3.get_value("other.thing"),Some(Type::Float(132.23)));
+        assert_eq!(test_obj3.get_value("other.count"),Some(Type::Int(23)));
+        assert_eq!(test_obj3.get_value("user.place"),Some(Type::Text("space".to_string())));
+
+        let test_obj3 = test_obj2.clone() + test_obj.clone();
+
+        assert_eq!(test_obj3.get_value("other.thing"),Some(Type::Switch(false)));
+        assert_eq!(test_obj3.get_value("other.count"),Some(Type::Int(23)));
+        assert_eq!(test_obj3.get_value("user.place"),Some(Type::Text("space".to_string())));
+
+        test_obj += test_obj2;
+
+        assert_eq!(test_obj.get_value("other.thing"),Some(Type::Float(132.23)));
+        assert_eq!(test_obj.get_value("other.count"),Some(Type::Int(23)));
+        assert_eq!(test_obj.get_value("user.place"),Some(Type::Text("space".to_string())));
+
+    }
+
+    #[test]
+    fn flattening() {
+        //! test flattening and flattening detection
+        let mut flat_gen = Settings::new(Configuration{});
+        assert!(flat_gen.set_value("user.name","the username").is_ok());
+        assert!(flat_gen.set_value("user.email","someone@someplace.com").is_ok());
+        assert!(flat_gen.set_value("software.version",&23).is_ok());
+        assert!(flat_gen.set_value("software.update_available",&false).is_ok());
+        assert!(flat_gen.is_flat() == false);
+
+        let flat = flat_gen.get_flat_hash();
+        assert!(flat.is_flat() == true);
+        assert_eq!(flat.get_value("user"),None);
+        assert_eq!(flat.get_value("software"),None);
+        // using this function to get the absolute key, so we don't try and split it
+        assert_eq!(flat.get_value_absolute("user.name"),Some(Type::Text("the username".to_string())));
+        assert_eq!(flat.get_value_absolute("software.version"),Some(Type::Int(23)));
+
+        let fluff = Settings::from_flat(&flat);
+        assert!(fluff.is_flat() == false);
+        assert_eq!(fluff.get_value_absolute("user.name"),None);
+        assert_eq!(fluff.get_value("user.name"),Some(Type::Text("the username".to_string())));
+        assert_eq!(fluff.get_value_absolute("software.version"),None);
+        assert_eq!(fluff.get_value("software.version"),Some(Type::Int(23)));
+
+
+    }
+
+
+}
+
