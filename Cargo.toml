@@ -3,11 +3,14 @@ name = "settingsfile"
 version = "0.2.0"
 authors = ["snsvrno <snsvrno@tuta.io>"]
 
-description = "Library for easy interaction with complex configuration / settings files in multiple formats."
+license = "MIT"
+description = "a library for easy interaction with complex configuration / settings files in multiple formats."
 repository = "https://github.com/snsvrno/settingsfile-rs"
 readme = "README.md"
 keywords = ["configuration","settings","config"]
 categories = ["config"]
+
+exclude = [ "/tests" ]
 
 [dependencies]
 serde = "1.0"
