@@ -15,6 +15,15 @@ pub trait Format {
     fn to_string<T>(&self,object:&T) -> Result<String,Error> where T : SupportedType + Serialize;
     fn from_str<T>(&self,buffer:&str) -> Result<SettingsRaw,Error> where T : Format + Clone;
 
-    /// have default implemntations ////////////////////////////////
+    // have default implemntations ////////////////////////////////
     fn extension(&self) -> Option<String> { None }
+
+    // functions that shouldn't generally need to be implemented //
+    fn get_path(&self) -> String {
+        if let Some(ext) = self.extension() {
+            return format!("{}/{}.{}",self.folder(),self.filename(),ext);
+        } else {
+            return format!("{}/{}",self.folder(),self.filename());
+        }
+    }
 }

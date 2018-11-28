@@ -77,7 +77,7 @@ impl<T> Settings<T> where T : Format + Clone {
     // io - filesystem functions //////////////////////////////////////////////////////////////////
     // accessing stored versions of the Settings that isn't in memory.
 
-    pub fn load_from(mut file : File, config : T) -> Result<Settings<T>,Error> {
+    pub fn create_from(mut file : &File, config : T) -> Result<Settings<T>,Error> {
         //! Loads the content of a `File` using the configuration. Doesn't use
         //! a path or doesn't infer the path from the config because this method
         //! is easier to do testing on to ensure everything behaves as expected
@@ -94,32 +94,72 @@ impl<T> Settings<T> where T : Format + Clone {
                 // TODO: fix the problem with referencing trates causing error E0283
                 //  keys : Settings::generate_keys(&hash), 
                 keys : Vec::new(), 
-                ioconfig : config 
+                ioconfig : config
             })
         } else { 
             Ok(Settings{ parts: HashMap::new(), keys: Vec::new(), ioconfig : config })
         }
     }
 
-    pub fn load_from_or_empty(file : File, config : T) -> Settings<T> {
+    pub fn create_from_or_empty(file : &File, config : T) -> Settings<T> {
         //! Wrapper around `load_from` so the return value isn't an result.
         //! loads a new setting object from a path, or creates an empty object 
         //! if file doesn't exist or errors in any way.
 
-        match Settings::load_from(file,config.clone()) {
+        match Settings::create_from(file,config.clone()) {
             Ok(settings) => { settings }
-            Err(_) => { Settings::new(config.clone()) }
+            Err(_) => { Settings::new(config) }
         }
     }
 
-    pub fn save_to(&self, mut file : File) -> Result<(),Error> {
+    pub fn load(&mut self) -> Result<(),Error> {
+        //! loads from the file defined in ioconfig
+        //! if nothing exists it throws an error. This shouldn't
+        //! be used for initalizing a new `Settings`, look at `create` and 
+        //! `create_from` for that.
+        
+        let mut file = File::open(self.ioconfig.get_path())?;
+        self.load_from(&mut file)
+    }
+
+    pub fn load_from(&mut self, file : &mut File) -> Result<(),Error> {
+        //! loads into the current `Setting` with the buffer
+        //! of the file
+
+        // loads the raw file into a buffer
+        let mut buf : String = String::new();
+        file.read_to_string(&mut buf)?;
+
+        // parses the string
+        if buf.len() > 0 {
+            let hash = Format::from_str::<T>(&self.ioconfig,&buf)?;
+            self.parts = hash;
+            Ok(())
+        } else {
+            Err(format_err!("Error loading from buffer"))
+        }
+    }
+
+    pub fn save(&self) -> Result<(),Error> {
+        //! saves the setting to a file, uses the `save_to` buffer function
+         
+        let mut file = File::create(self.ioconfig.get_path())?;
+        self.save_to(&mut file)
+    }
+
+    pub fn save_to(&self, mut file : &File) -> Result<(),Error> {
         //! saves the setting to a file buffer. Maybe done this way because 
         //! of ease of writing good tests?
 
         match self.ioconfig.to_string(&self.parts){
             Err(error) => return Err(error),
             Ok(settings_string) => {
-                file.write_all(settings_string.as_bytes())?;
+                //match write!(file,"{}",settings_string) {
+                //    Ok(_) => Ok(()),
+                //    Err(error) => Err(format_err!("{}",error)),
+                //}
+                println!("the string : {}",settings_string);
+                println!("wrote {:?} bytes",file.write(settings_string.as_bytes()));
                 Ok(())
             }
         }

@@ -17,4 +17,4 @@ failure = "0.1"
 [dev-dependencies]
 ron = "0.4"
 toml = "0.4"
-tempfile = "3.0"
+tempfile = "3"

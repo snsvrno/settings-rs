@@ -1,5 +1,5 @@
 #[macro_use] extern crate serde_derive;
-extern crate failure;
+#[macro_use] extern crate failure;
 extern crate serde;
 
 //use std::fs::{File,create_dir_all};
