@@ -67,7 +67,7 @@ impl<T> Settings<T> where T : Format + Clone {
         // assuming this will always work because we are creating a complex, 
         // and flattening a complex should always result in another complex
         // so this should be 100% safe to do (unwrap).
-        for (k,v) in complex_type.flatten(None).to_complex().unwrap() {
+        for (k,_) in complex_type.flatten(None).to_complex().unwrap() {
             keys.push(k);
         }
 
@@ -173,6 +173,8 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn set_value<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
         where A : SupportedType ,
     {
+        //! sets the value of a key, uses a generic that must implement the `SupportedType` trait
+        
         let mut parts : Vec<Type> = Vec::new();
         let path_tree : Vec<&str> = key_path.split(".").collect();
 
@@ -225,13 +227,67 @@ impl<T> Settings<T> where T : Format + Clone {
         Ok(())
     }
 
-    pub fn delete_key(&self, key_path : &str) -> Option<Type> {
+    pub fn delete_key(&mut self, key_path : &str) -> Option<Type> {
         //! deletes the key and returns the current value, 
         //! returns none if the key didn't exist.
-         
-         // FIXME: Implement this
-         
-        None
+        
+        let mut parts : Vec<Type> = Vec::new();
+        let path_tree : Vec<&str> = key_path.split(".").collect();
+        let mut returned_value : Option<Type> = None;
+
+        for i in 0..path_tree.len()-1 {
+            if i == 0 {
+                if let Some(part) = self.parts.remove(&path_tree[i].to_string()) {
+                    if let Type::Complex(hash) = part { 
+                        parts.push(Type::Complex(hash)); 
+                    } else { parts.push(Type::Complex(HashMap::new())); }
+                } else { parts.push(Type::Complex(HashMap::new())); }
+            } else {
+                let index = parts.len()-1;
+                let mut push_me : Option<Type> = None;
+                if let Type::Complex(ref mut mut_parts) = parts[index] {
+                    if let Some(part) = mut_parts.remove(&path_tree[i].to_string()) {
+                        if let Type::Complex(hash) = part { 
+                            push_me = Some(Type::Complex(hash));
+                        }
+                    }
+                }
+                match push_me {
+                    None => parts.push(Type::Complex(HashMap::new())),
+                    Some(push_me) => parts.push(push_me)
+                }
+            }
+        }
+
+        // if the parts length is one, then there was nothing to split
+        // so we should just treat the key as an absolute path key
+        // and go directly to the `HashMap<_,_>::remove()` function
+        // to delete the key.
+        if path_tree.len() == 1 {
+            returned_value = self.parts.remove(key_path);
+        } else {
+            if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
+                returned_value = parts_two.remove(path_tree[path_tree.len()-1]);
+            }
+        }
+        
+        // rebuilds the tree, if there is a tree to rebuild (parts.len() > 1)
+        if parts.len() > 1 {
+                for i in (1..parts.len()).rev() {
+                        let temp_part = parts.remove(i);
+                        if let Type::Complex(ref mut parts_minus_1) = parts[i-1] {
+                            parts_minus_1.insert(path_tree[i].to_string(),temp_part);
+                        }
+                }
+            self.parts.insert(path_tree[0].to_string(),parts.remove(0));
+        }
+
+        // needs to recalculate the keys, so that if we are adding
+        // a new value to a new key location it can be iterated about
+        // TODO: fix the issue with Trait reference
+        // self.keys = Settings::generate_keys(&self.parts);
+        
+        returned_value
     }
 
     // flatten related functions //////////////////////////////////////////////////////
@@ -471,6 +527,23 @@ mod tests {
         assert_eq!(fluff.get_value("software.version"),Some(Type::Int(23)));
 
 
+    }
+
+    #[test]
+    fn deleting() {
+        let mut setting = Settings::new(Configuration{});
+        assert!(setting.set_value("user.name","the username").is_ok());
+        assert!(setting.set_value("user.email","someone@someplace.com").is_ok());
+        assert!(setting.set_value("software.version",&23).is_ok());
+        assert!(setting.set_value("software.update_available",&false).is_ok());
+
+        assert_eq!(setting.get_value("software.version"),Some(Type::Int(23)));
+
+        assert_eq!(setting.delete_key("software.version"),Some(Type::Int(23)));
+        setting.delete_key("user");
+        assert_eq!(None,setting.get_value("software.version"));
+        assert_eq!(None,setting.get_value("user.name"));
+        assert_eq!(None,setting.get_value("user.email"));
     }
 
 
