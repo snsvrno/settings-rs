@@ -1,4 +1,13 @@
-
+/// the main guts of `Settingsfile-rs`. The `Settings` struct
+/// interacts with the file system to serialize / deserialize
+/// configurations / settings and then allow easy navigation
+/// and maniulation.
+/// 
+/// `Settings` only reads data from one source and doesn't do
+/// any 'shadowing', so if you want to override settings based
+/// on a local user configuration, use the `ShadowSettings`
+/// struct instead.
+ 
 use Format;
 use Type;
 use SupportedType;
@@ -13,7 +22,7 @@ use failure::Error;
 #[derive(Serialize,Deserialize,Clone)]
 pub struct Settings<T> where T : Format + Clone {
     // contains all the data. a hashmap of Type(s)
-    parts : HashMap<String,Type>,
+    global : HashMap<String,Type>,
     // a non-editable array to allow for easy iteration, 
     // is regenerated on manipulation, contains the dot
     // location keys of everything in the array
@@ -31,20 +40,20 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn new(config : T) -> Settings<T> { 
         //! Creates an empty `Settings` from a configuration
         Settings { 
-            parts : HashMap::new(), 
+            global : HashMap::new(), 
             keys : Vec::new(),
             ioconfig : config
         } 
     }
 
-    pub fn from_flat(flat_hash : &Settings<T>) -> Settings<T> {
+    fn from_flat(flat_hash : &Settings<T>) -> Settings<T> {
         //! creates a settings from a flatten `Settings`. A flat settings is a 
         //! `Settings` that doesn't have any `Type::Complex`, so there is only
         //! one level of depth.
 
         let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
-        for (key,value) in flat_hash.parts.iter() {
+        for (key,value) in flat_hash.global.iter() {
             // FIXME: do something with error / results when
             // setting a value here from a flat settings.
             let _ = new_hash.set_value(&key,&value);
@@ -90,14 +99,14 @@ impl<T> Settings<T> where T : Format + Clone {
         if buf.len() > 0 {
             let hash = Format::from_str::<T>(&config,&buf)?;
             Ok(Settings{ 
-                parts : hash, 
+                global : hash, 
                 // TODO: fix the problem with referencing trates causing error E0283
                 //  keys : Settings::generate_keys(&hash), 
                 keys : Vec::new(), 
                 ioconfig : config
             })
         } else { 
-            Ok(Settings{ parts: HashMap::new(), keys: Vec::new(), ioconfig : config })
+            Ok(Settings{ global: HashMap::new(), keys: Vec::new(), ioconfig : config })
         }
     }
 
@@ -119,6 +128,8 @@ impl<T> Settings<T> where T : Format + Clone {
         //! `create_from` for that.
         
         let mut file = File::open(self.ioconfig.get_path())?;
+        //FIXME: needs to create the path and file if it doesn't exist, 
+        // not error..
         self.load_from(&mut file)
     }
 
@@ -133,7 +144,7 @@ impl<T> Settings<T> where T : Format + Clone {
         // parses the string
         if buf.len() > 0 {
             let hash = Format::from_str::<T>(&self.ioconfig,&buf)?;
-            self.parts = hash;
+            self.global = hash;
             Ok(())
         } else {
             Err(format_err!("Error loading from buffer"))
@@ -151,7 +162,7 @@ impl<T> Settings<T> where T : Format + Clone {
         //! saves the setting to a file buffer. Maybe done this way because 
         //! of ease of writing good tests?
 
-        match self.ioconfig.to_string(&self.parts){
+        match self.ioconfig.to_string(&self.global){
             Err(error) => return Err(error),
             Ok(settings_string) => {
                 //match write!(file,"{}",settings_string) {
@@ -175,7 +186,7 @@ impl<T> Settings<T> where T : Format + Clone {
         //! will not work as it will attempt to split the key and it will find 
         //! nothing, this function will _NEVER_ split the key
         
-        if let Some(result) = self.parts.get(key_path) {
+        if let Some(result) = self.global.get(key_path) {
             return Some(result.clone());
         } else {
             return None;
@@ -192,7 +203,7 @@ impl<T> Settings<T> where T : Format + Clone {
         // TODO: need to fix this in order to have full unicode support. need to use .chars() instead of slice.
         for i in 0..path_tree.len() {
             if i == 0 { 
-                if let Some(ref part) = self.parts.get(&path_tree[i].to_string()) {
+                if let Some(ref part) = self.global.get(&path_tree[i].to_string()) {
                     subtree = part;
                 } else { return None }
             } else {
@@ -215,20 +226,20 @@ impl<T> Settings<T> where T : Format + Clone {
     {
         //! sets the value of a key, uses a generic that must implement the `SupportedType` trait
         
-        let mut parts : Vec<Type> = Vec::new();
+        let mut global : Vec<Type> = Vec::new();
         let path_tree : Vec<&str> = key_path.split(".").collect();
 
         for i in 0..path_tree.len()-1 {
             if i == 0 {
-                if let Some(part) = self.parts.remove(&path_tree[i].to_string()) {
+                if let Some(part) = self.global.remove(&path_tree[i].to_string()) {
                     if let Type::Complex(hash) = part { 
-                        parts.push(Type::Complex(hash)); 
-                    } else { parts.push(Type::Complex(HashMap::new())); }
-                } else { parts.push(Type::Complex(HashMap::new())); }
+                        global.push(Type::Complex(hash)); 
+                    } else { global.push(Type::Complex(HashMap::new())); }
+                } else { global.push(Type::Complex(HashMap::new())); }
             } else {
-                let index = parts.len()-1;
+                let index = global.len()-1;
                 let mut push_me : Option<Type> = None;
-                if let Type::Complex(ref mut mut_parts) = parts[index] {
+                if let Type::Complex(ref mut mut_parts) = global[index] {
                     if let Some(part) = mut_parts.remove(&path_tree[i].to_string()) {
                         if let Type::Complex(hash) = part { 
                             push_me = Some(Type::Complex(hash));
@@ -236,33 +247,33 @@ impl<T> Settings<T> where T : Format + Clone {
                     }
                 }
                 match push_me {
-                    None => parts.push(Type::Complex(HashMap::new())),
-                    Some(push_me) => parts.push(push_me)
+                    None => global.push(Type::Complex(HashMap::new())),
+                    Some(push_me) => global.push(push_me)
                 }
             }
         }
 
-        if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
+        if let Type::Complex(ref mut parts_two) = global[path_tree.len()-2] {
             parts_two.insert(path_tree[path_tree.len()-1].to_string(),value.wrap());
         }
 
         
         // rebuilds the tree
-        if parts.len() > 1 {
-                for i in (1..parts.len()).rev() {
-                        let temp_part = parts.remove(i);
-                        if let Type::Complex(ref mut parts_minus_1) = parts[i-1] {
+        if global.len() > 1 {
+                for i in (1..global.len()).rev() {
+                        let temp_part = global.remove(i);
+                        if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
                             parts_minus_1.insert(path_tree[i].to_string(),temp_part);
                         }
                 }        
         }
 
-        self.parts.insert(path_tree[0].to_string(),parts.remove(0));
+        self.global.insert(path_tree[0].to_string(),global.remove(0));
 
         // needs to recalculate the keys, so that if we are adding
         // a new value to a new key location it can be iterated about
         // TODO: fix the issue with Trait reference
-        // self.keys = Settings::generate_keys(&self.parts);
+        // self.keys = Settings::generate_keys(&self.global);
         
         Ok(())
     }
@@ -271,21 +282,21 @@ impl<T> Settings<T> where T : Format + Clone {
         //! deletes the key and returns the current value, 
         //! returns none if the key didn't exist.
         
-        let mut parts : Vec<Type> = Vec::new();
+        let mut global : Vec<Type> = Vec::new();
         let path_tree : Vec<&str> = key_path.split(".").collect();
         let mut returned_value : Option<Type> = None;
 
         for i in 0..path_tree.len()-1 {
             if i == 0 {
-                if let Some(part) = self.parts.remove(&path_tree[i].to_string()) {
+                if let Some(part) = self.global.remove(&path_tree[i].to_string()) {
                     if let Type::Complex(hash) = part { 
-                        parts.push(Type::Complex(hash)); 
-                    } else { parts.push(Type::Complex(HashMap::new())); }
-                } else { parts.push(Type::Complex(HashMap::new())); }
+                        global.push(Type::Complex(hash)); 
+                    } else { global.push(Type::Complex(HashMap::new())); }
+                } else { global.push(Type::Complex(HashMap::new())); }
             } else {
-                let index = parts.len()-1;
+                let index = global.len()-1;
                 let mut push_me : Option<Type> = None;
-                if let Type::Complex(ref mut mut_parts) = parts[index] {
+                if let Type::Complex(ref mut mut_parts) = global[index] {
                     if let Some(part) = mut_parts.remove(&path_tree[i].to_string()) {
                         if let Type::Complex(hash) = part { 
                             push_me = Some(Type::Complex(hash));
@@ -293,53 +304,53 @@ impl<T> Settings<T> where T : Format + Clone {
                     }
                 }
                 match push_me {
-                    None => parts.push(Type::Complex(HashMap::new())),
-                    Some(push_me) => parts.push(push_me)
+                    None => global.push(Type::Complex(HashMap::new())),
+                    Some(push_me) => global.push(push_me)
                 }
             }
         }
 
-        // if the parts length is one, then there was nothing to split
+        // if the global length is one, then there was nothing to split
         // so we should just treat the key as an absolute path key
         // and go directly to the `HashMap<_,_>::remove()` function
         // to delete the key.
         if path_tree.len() == 1 {
-            returned_value = self.parts.remove(key_path);
+            returned_value = self.global.remove(key_path);
         } else {
-            if let Type::Complex(ref mut parts_two) = parts[path_tree.len()-2] {
+            if let Type::Complex(ref mut parts_two) = global[path_tree.len()-2] {
                 returned_value = parts_two.remove(path_tree[path_tree.len()-1]);
             }
         }
         
-        // rebuilds the tree, if there is a tree to rebuild (parts.len() > 1)
-        if parts.len() > 1 {
-                for i in (1..parts.len()).rev() {
-                        let temp_part = parts.remove(i);
-                        if let Type::Complex(ref mut parts_minus_1) = parts[i-1] {
+        // rebuilds the tree, if there is a tree to rebuild (global.len() > 1)
+        if global.len() > 1 {
+                for i in (1..global.len()).rev() {
+                        let temp_part = global.remove(i);
+                        if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
                             parts_minus_1.insert(path_tree[i].to_string(),temp_part);
                         }
                 }
-            self.parts.insert(path_tree[0].to_string(),parts.remove(0));
+            self.global.insert(path_tree[0].to_string(),global.remove(0));
         }
 
         // needs to recalculate the keys, so that if we are adding
         // a new value to a new key location it can be iterated about
         // TODO: fix the issue with Trait reference
-        // self.keys = Settings::generate_keys(&self.parts);
+        // self.keys = Settings::generate_keys(&self.global);
         
         returned_value
     }
 
     // flatten related functions //////////////////////////////////////////////////////
 
-    pub fn get_flat_hash(&self) -> Settings<T> {
+    fn get_flat_hash(&self) -> Settings<T> {
         //! returns the flattened form of the ***Setting***, shortcut of `flatten()`
         //! and a member function
 
         Settings::flatten(self)
     }
 
-    pub fn is_flat(&self) -> bool {
+    fn is_flat(&self) -> bool {
         //! checks if the settings file is flat
         //!
         //! a flat ***Settings*** is defined by no ***Type*** being `Type::Complex`.
@@ -381,31 +392,31 @@ impl<T> Settings<T> where T : Format + Clone {
         // which then means this can't be flat because a flat
         // has a depth of 1 and a complex has its own depth + current
         // depth which is > 1.
-        for (_,value) in self.parts.iter() {
+        for (_,value) in self.global.iter() {
             if value.is_complex() { return false; }
         }
         
         // if we are still going, then look at the length, if there aren't
-        // any parts then it shouldn't be considered flat because its empty.
-        if self.parts.len() > 0 { 
+        // any global then it shouldn't be considered flat because its empty.
+        if self.global.len() > 0 { 
             true
         } else {
             false
         }
     }
 
-    pub fn flatten(hash_to_flatten : &Settings<T>) -> Settings<T> {
+    fn flatten(hash_to_flatten : &Settings<T>) -> Settings<T> {
         //! used to flatten a `Settings`. Takes a `Settings` and removes all 
         //! `Type::Complex` into a noncomplex with a key using dot notation. 
         //! Refer to the explaination at `is_flat` to see what a flat `Settings` is
 
         let mut flat_hash : HashMap<String,Type> = HashMap::new(); // new hash to return at the end
 
-        // iterates through all the `Types` in the `self.parts` of the `Settings`,
+        // iterates through all the `Types` in the `self.global` of the `Settings`,
         // checks if each is a `Type::Complex`, if so then adds it to the flat_hash,
         // and if not then just adds the resulting type from `flatten()` to the 
         // flat_hash returner object.
-        for (key,value) in hash_to_flatten.parts.iter() {
+        for (key,value) in hash_to_flatten.global.iter() {
             let temp_type : Type = value.flatten(Some(key.to_string()));
             if let Type::Complex(hash) = temp_type {
                 for (k2,v2) in hash.iter() {
@@ -417,7 +428,7 @@ impl<T> Settings<T> where T : Format + Clone {
         }
 
         Settings { 
-            parts : flat_hash, 
+            global : flat_hash, 
             // TODO: another issue with traits, fix and then return the bottom line
             //   keys : Settings::generate_keys(&flat_hash),
             keys : Vec::new(),
@@ -443,8 +454,8 @@ impl<T> Add for Settings<T> where T : Format + Clone {
         let mut flat_self = self.get_flat_hash();
         let flat_other = other.get_flat_hash();
 
-        for (key,value) in flat_other.parts.iter() {
-            flat_self.parts.insert(key.to_string(),value.clone());
+        for (key,value) in flat_other.global.iter() {
+            flat_self.global.insert(key.to_string(),value.clone());
         } 
 
         Settings::from_flat(&flat_self)
@@ -459,7 +470,7 @@ impl<T> AddAssign for Settings<T> where T : Format + Clone {
         
         let flat_other = other.get_flat_hash();
 
-        for (key,value) in flat_other.parts.iter() {
+        for (key,value) in flat_other.global.iter() {
             let _ = self.set_value(&key,&value);
         }
     }
@@ -507,7 +518,7 @@ mod tests {
         assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
     }
 
-        #[test]
+    #[test]
     fn add() {
         //! confirms addition of two settings works.
         //! the only current (maybe) issues with this is that it consumes the 

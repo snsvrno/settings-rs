@@ -1,4 +1,7 @@
-
+# rust artifacts and files
 /target/
 **/*.rs.bk
 Cargo.lock
+
+# personal files, 
+notes

@@ -3,6 +3,7 @@ use SupportedType;
 
 use failure::Error;
 use std::collections::HashMap;
+use std::env;
 use serde::ser::Serialize;
 
 /// A convience type that is used to shorten the required return 
@@ -119,22 +120,78 @@ pub trait Format {
          
         None
     }
-    fn allow_local_overrides(&self) -> bool { 
-        //! option to allow for local setting files to override the 
-        //! global settings defined in this configuration.
+
+    fn local_filename(&self) -> Option<String> {
+        //! option to allow for a different filename for a local
+        //! file. only used with `ShadowSetting`. Functions the same 
+        //! as `filename`, does not include an extension.
         
-        true 
+        None
+    }
+
+    fn local_extension(&self) -> Option<String> {
+        //! option to allow for an extension when using a different
+        //! local file name. only used with `ShadowSetting`. Doesn't 
+        //! do anything if `local_filename` is `None`
+        
+        None
     }
 
     // functions that shouldn't generally need to be implemented //
     fn get_path(&self) -> String {
         //! will give the correct path depending on what was implemented
         //! in the configuration
+  
+        format!("{}/{}",self.folder(),self.get_filename())
+    }
+
+    fn get_filename(&self) -> String {
+        //! returns the complete file name with or without
+        //! the extension (if defined)
         
         if let Some(ext) = self.extension() {
-            return format!("{}/{}.{}",self.folder(),self.filename(),ext);
+            return format!("{}.{}",self.filename(),ext);
         } else {
-            return format!("{}/{}",self.folder(),self.filename());
+            return self.filename();
+        }
+    }
+
+    fn get_local_filename(&self) -> Option<String> {
+        //! assembles the local file name, will return
+        //! `None` if local_filename is `None`
+         
+        match self.local_filename() {
+            None => None,
+            Some(localname) => {
+                if let Some(ext) = self.local_extension() {
+                    Some(format!("{}.{}",localname,ext))
+                } else {
+                    Some(localname)
+                }
+            }
+        }
+    }
+
+    fn get_local_path(&self) -> String {
+        //! returns the path where the local configuration
+        //! would be.
+        
+        match env::current_dir() {
+            // panics on error because I don't think this is a credible scenario
+            // the user is in the current directory running this program, so
+            // they should have access to it, this will most probably be used
+            // for CLI applications and you must have permission to go inside 
+            // a directory in order to run it.
+            Err(_) => { panic!(); },
+            Ok(mut path) => {
+                path.push(self.folder());
+                if let Some(local_filename) = self.get_local_filename() {
+                    path.push(local_filename);
+                } else {
+                    path.push(self.get_filename());
+                }
+                return path.display().to_string();
+            }
         }
     }
 }
