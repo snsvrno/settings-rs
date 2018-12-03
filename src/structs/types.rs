@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Serialize,Deserialize,Debug,Clone,PartialEq)]
 #[serde(untagged)]
@@ -77,6 +78,35 @@ impl Type {
     }
 }
 
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Int(ref value) => write!(f,"{}",value),
+            Type::Switch(ref value) => write!(f,"{}",value),
+            Type::Float(ref value) => write!(f,"{}",value),
+            Type::Text(ref value) => write!(f,"{}",value),
+            Type::None => write!(f,"[BLANK]"),
+            Type::Array(ref value) => {
+                write!(f,"[ ");
+                for i in 0..value.len() {
+                    write!(f,"{}",value[i]);
+                    if i < value.len() - 1 { 
+                        write!(f,", ");
+                    }
+                }
+                write!(f," ]")
+            },
+            Type::Complex(ref value) => {
+                write!(f,"{{ ");
+                for (k,v) in value {
+                    write!(f,"{} : {}, ", k,v);
+                }
+                write!(f," }}")
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use Type;
@@ -107,5 +137,31 @@ mod tests {
         assert!(complex.to_complex().unwrap().get("a") == None);
         assert!(complex.to_complex().unwrap().get("b.int").unwrap().to_int().unwrap() == 10);
         assert!(complex.to_complex().unwrap().get("b.float").unwrap().to_float().unwrap() == 10.23);
+    }
+
+    #[test]
+    fn display_print() {
+        let test1 = Type::Int(12);
+        let test2 = Type::Switch(false);
+        let test3 = Type::Float(12.01);
+        let test4 = Type::Text("Wjat os tjos".to_string());
+        let test5 = Type::Array(vec![ Type::Int(1),Type::Float(2.2) ]);
+
+        let mut hash : HashMap<String,Type> = HashMap::new();
+        hash.insert("1".to_string(),test1.clone());
+        hash.insert("2".to_string(),test2.clone());
+        hash.insert("3".to_string(),test3.clone());
+        hash.insert("4".to_string(),test4.clone());
+        hash.insert("5".to_string(),test5.clone());
+        let test6 = Type::Complex(hash);
+
+        println!("{}",test1);
+        println!("{}",test2);
+        println!("{}",test3);
+        println!("{}",test4);
+        println!("{}",test5);
+        println!("{}",test6);
+
+        assert!(true);
     }
 }
