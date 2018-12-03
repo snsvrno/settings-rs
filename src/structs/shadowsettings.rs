@@ -20,6 +20,7 @@
 use Format;
 use Type;
 use Settings;
+use SupportedType;
 
 use std::fs::File;
 use failure::Error;
@@ -54,11 +55,11 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         //! attempts to load both local and global
         
         if let Ok(mut file) = File::open(self.ioconfig.get_path()) {
-            self.load_global_from(&mut file);
+            self.load_global_from(&mut file)?;
         }
 
         if let Ok(mut file) = File::open(self.ioconfig.get_local_path()) {
-            self.load_local_from(&mut file);
+            self.load_local_from(&mut file)?;
         }
 
         Ok(())
@@ -78,21 +79,21 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         //! saves the setting to a file, uses the `save_to` buffer function
          
         let mut file = File::create(self.ioconfig.get_path())?;
-        self.save_global_to(&mut file);
+        self.save_global_to(&mut file)?;
 
-        if let Some(ref local) = self.local {
+        if self.local.is_some() {
             let mut local_file  = File::create(self.ioconfig.get_local_path())?;
-            self.save_local_to(&mut file);
+            self.save_local_to(&mut local_file)?;
         }
 
         Ok(())
     }
 
-    pub fn save_global_to(&self, mut file : &File) -> Result<(),Error> {
+    pub fn save_global_to(&self, file : &File) -> Result<(),Error> {
         self.global.save_to(file)
     }
 
-    pub fn save_local_to(&self, mut file : &File) -> Result<(), Error> {
+    pub fn save_local_to(&self, file : &File) -> Result<(), Error> {
         if let Some(ref local) = self.local {
             local.save_to(file)
         } else { Ok(() )}
@@ -115,13 +116,144 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         if let Some(ref local) = self.local {
             match local.get_value(key_path) {
                 None => self.global.get_value(key_path),
-                Some(value) => Some(value),
+                Some(value) => { 
+                    // here we are creating a new complex that is a 
+                    // composite of the other two complexs (global,local)
+                    match value {
+                        Type::Complex(mut value) => {
+                            if let Some(Type::Complex(global)) = self.global.get_value(key_path) {
+                                for (k,v) in global {
+                                    if value.get(&k).is_none() {
+                                        value.insert(k, v);
+                                    }
+                                }
+                            }
+                            Some(Type::Complex(value))
+                        },
+                        _ => Some(value),
+                    } 
+                },
             }
         } else {
             self.global.get_value(key_path)
         }
     }
+    
+    pub fn get_value_local(&self, key_path : &str) -> Option<Type> {
+        match self.local {
+            Some(ref local) => local.get_value(key_path),
+            None => None,
+        } 
+    }
 
-    // set value
-    // delete value
+    pub fn get_value_global(&self, key_path : &str) -> Option<Type> {
+        self.global.get_value(key_path)
+    }
+
+    pub fn set_value_local<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
+        where A : SupportedType ,
+    {
+        match self.local {
+            Some(ref mut local) => local.set_value(key_path,value),
+            None => {
+                // needs to make the local settings if they don't exist.
+                // the user doesn't care if it doesn't exist yet, they
+                // obviously want to use it because they are using this function
+                let mut local = Settings::new(self.ioconfig.clone());
+                let result = local.set_value(key_path,value);
+                self.local = Some(local);
+                result
+            },
+        } 
+    }
+
+    pub fn set_value_global<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
+        where A : SupportedType ,
+    {
+        self.global.set_value(key_path,value)
+    }
+    
+    pub fn delete_key_local(&mut self, key_path : &str) -> Option<Type> {
+        match self.local {
+            Some(ref mut local) => local.delete_key(key_path),
+            None => None,
+        }
+    }
+
+    pub fn delete_key_global(&mut self, key_path : &str) -> Option<Type> {
+        self.global.delete_key(key_path)
+    }
+}
+
+// tests ////////////////////////////////////////////////////////////////////////////////
+#[cfg(test)]
+mod tests {
+    use SupportedType;
+    use Format;
+    use SettingsRaw;
+    use Type;
+    use ShadowSettings;
+
+    use failure::Error;
+    use std::collections::HashMap;
+
+    // Dummy configuration, just enough to get it working.
+    #[derive(Clone)]
+    struct Configuration { }
+    impl Format for Configuration {
+        fn filename(&self) -> String { "".to_string() }
+        fn folder(&self) -> String { "".to_string() }
+
+        fn from_str<T>(&self,_:&str) -> Result<SettingsRaw,Error> where T : Format + Clone { 
+            Ok(HashMap::<String,Type>::new())
+        }
+        fn to_string<T:?Sized>(&self,_:&T) -> Result<String,Error> where T : SupportedType { 
+            Ok("unimplemented".to_string())
+        }
+    }
+
+    #[test]
+    fn set_and_get_value() {
+        //! confirms set and get functionality, that basic reading and writing works
+        
+        let mut test_obj = ShadowSettings::new(Configuration{});
+        // setting global settings
+        assert_eq!(test_obj.set_value_global("a.b.c.d","mortan").is_ok(),true);
+        assert_eq!(test_obj.set_value_global("a.b.c.e","bobby lee").is_ok(),true);
+        assert_eq!(test_obj.set_value_global("a.b.f",&4453).is_ok(),true);
+        assert_eq!(test_obj.set_value_global("a.is_enabled",&true).is_ok(),true);
+        //setting local settings to override the global settings
+        assert_eq!(test_obj.set_value_local("a.b.c.d",&false).is_ok(),true);
+        // checking all the global settings are accessible
+        assert_eq!(test_obj.get_value_global("a.b.c.d"),Some(Type::Text("mortan".to_string())));
+        assert_eq!(test_obj.get_value_global("a.b.c.e"),Some(Type::Text("bobby lee".to_string())));
+        assert_eq!(test_obj.get_value_global("a.b.f"),Some(Type::Int(4453)));
+        assert_eq!(test_obj.get_value_global("a.is_enabled"),Some(Type::Switch(true)));
+        // checking the local setting is accessible
+        assert_eq!(test_obj.get_value_local("a.b.c.d"),Some(Type::Switch(false)));
+        // checks shadowing.
+        assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Switch(false)));
+        assert_eq!(test_obj.get_value("a.b.c.e"),Some(Type::Text("bobby lee".to_string())));
+        assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
+        assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
+    }
+
+    #[test]
+    fn get_value_shadow_complex() {
+        //! confirms that when you pull out a section of the settings from a 
+        //! ShadowSettings you will get a shadowed version of the settings, 
+        //! so it should be a SimpleSettings (Settings) with the correct 
+        //! shadowing.
+
+        let mut test_obj = ShadowSettings::new(Configuration{});
+        // setting global settings
+        assert_eq!(test_obj.set_value_global("a.b.c.d","mortan").is_ok(),true);
+        assert_eq!(test_obj.set_value_global("a.b.c.e","bobby lee").is_ok(),true);
+        // setting local settings
+        assert_eq!(test_obj.set_value_local("a.b.c.e","lee bo").is_ok(),true);
+
+        let other_setting = test_obj.get_value("a.b.c").unwrap().to_complex().unwrap();
+        assert_eq!(other_setting.get("d"), Some(&Type::Text("mortan".to_string())));
+        assert_eq!(other_setting.get("e"), Some(&Type::Text("lee bo".to_string())));
+    }
 }

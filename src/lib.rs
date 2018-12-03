@@ -15,4 +15,5 @@ pub use traits::format::SettingsRaw;
 // public structs
 mod structs;
 pub use structs::settings::Settings;
+pub use structs::shadowsettings::ShadowSettings;
 pub use structs::types::Type;

@@ -1,6 +1,9 @@
 # Settingsfile-rs
 A library for easily accessing settings and configuration files using [Serde](https://serde.rs/).
 
+## Status
+Usable, but beta. Let me know of any issues you may encounter.
+
 ## Brief 
 ***Settingsfile-rs*** attempts to abstract away defining, parsing, and saving configuration files for cli and other programs. Taking the heavy lifting away so you can focus on making an easy to use program with a robust set of organized configuration options.
 

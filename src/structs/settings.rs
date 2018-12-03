@@ -23,10 +23,6 @@ use failure::Error;
 pub struct Settings<T> where T : Format + Clone {
     // contains all the data. a hashmap of Type(s)
     global : HashMap<String,Type>,
-    // a non-editable array to allow for easy iteration, 
-    // is regenerated on manipulation, contains the dot
-    // location keys of everything in the array
-    keys : Vec<String>,
     // the information of IO, where this file is located
     // and general details about the format.
     ioconfig: T,
@@ -40,8 +36,7 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn new(config : T) -> Settings<T> { 
         //! Creates an empty `Settings` from a configuration
         Settings { 
-            global : HashMap::new(), 
-            keys : Vec::new(),
+            global : HashMap::new(),
             ioconfig : config
         } 
     }
@@ -62,27 +57,6 @@ impl<T> Settings<T> where T : Format + Clone {
         new_hash
     }
 
-    fn generate_keys(hash : &HashMap<String,Type>) -> Vec<String> {
-        //! creates a vector array of strings which are all the keys
-        //! inside the input hash. The intent of this is to have a vec
-        //! of keys along with the data so we can easiy iterate and keep
-        //! track of where we are without having to worry about looking 
-        //! track and regenerating the hash every iterator used.
-        
-        let mut keys : Vec<String> = Vec::new();
-
-        let complex_type = Type::Complex(hash.clone());
-
-        // assuming this will always work because we are creating a complex, 
-        // and flattening a complex should always result in another complex
-        // so this should be 100% safe to do (unwrap).
-        for (k,_) in complex_type.flatten(None).to_complex().unwrap() {
-            keys.push(k);
-        }
-
-        keys
-    }
-
     // io - filesystem functions //////////////////////////////////////////////////////////////////
     // accessing stored versions of the Settings that isn't in memory.
 
@@ -99,14 +73,11 @@ impl<T> Settings<T> where T : Format + Clone {
         if buf.len() > 0 {
             let hash = Format::from_str::<T>(&config,&buf)?;
             Ok(Settings{ 
-                global : hash, 
-                // TODO: fix the problem with referencing trates causing error E0283
-                //  keys : Settings::generate_keys(&hash), 
-                keys : Vec::new(), 
+                global : hash,
                 ioconfig : config
             })
         } else { 
-            Ok(Settings{ global: HashMap::new(), keys: Vec::new(), ioconfig : config })
+            Ok(Settings{ global: HashMap::new(), ioconfig : config })
         }
     }
 
@@ -270,11 +241,6 @@ impl<T> Settings<T> where T : Format + Clone {
 
         self.global.insert(path_tree[0].to_string(),global.remove(0));
 
-        // needs to recalculate the keys, so that if we are adding
-        // a new value to a new key location it can be iterated about
-        // TODO: fix the issue with Trait reference
-        // self.keys = Settings::generate_keys(&self.global);
-        
         Ok(())
     }
 
@@ -332,11 +298,6 @@ impl<T> Settings<T> where T : Format + Clone {
                 }
             self.global.insert(path_tree[0].to_string(),global.remove(0));
         }
-
-        // needs to recalculate the keys, so that if we are adding
-        // a new value to a new key location it can be iterated about
-        // TODO: fix the issue with Trait reference
-        // self.keys = Settings::generate_keys(&self.global);
         
         returned_value
     }
@@ -350,6 +311,7 @@ impl<T> Settings<T> where T : Format + Clone {
         Settings::flatten(self)
     }
 
+    #[allow(dead_code)]
     fn is_flat(&self) -> bool {
         //! checks if the settings file is flat
         //!
@@ -428,10 +390,7 @@ impl<T> Settings<T> where T : Format + Clone {
         }
 
         Settings { 
-            global : flat_hash, 
-            // TODO: another issue with traits, fix and then return the bottom line
-            //   keys : Settings::generate_keys(&flat_hash),
-            keys : Vec::new(),
+            global : flat_hash,
             ioconfig : hash_to_flatten.ioconfig.clone() 
         }
     }
