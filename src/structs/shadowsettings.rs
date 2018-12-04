@@ -22,6 +22,7 @@ use Type;
 use Settings;
 use SupportedType;
 
+use std::fs;
 use std::fs::File;
 use failure::Error;
 
@@ -54,11 +55,11 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn load(&mut self) -> Result<(),Error> {
         //! attempts to load both local and global
         
-        if let Ok(mut file) = File::open(self.ioconfig.get_path()) {
+        if let Ok(mut file) = File::open(self.ioconfig.get_path_and_file()) {
             self.load_global_from(&mut file)?;
         }
 
-        if let Ok(mut file) = File::open(self.ioconfig.get_local_path()) {
+        if let Ok(mut file) = File::open(self.ioconfig.get_local_path_and_filename()) {
             self.load_local_from(&mut file)?;
         }
 
@@ -78,11 +79,15 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn save(&self) -> Result<(),Error> {
         //! saves the setting to a file, uses the `save_to` buffer function
          
-        let mut file = File::create(self.ioconfig.get_path())?;
+        // first makes sure all the directories exist before attempting to create
+        // the file, so it has a place to make it
+        fs::create_dir_all(self.ioconfig.get_path())?;
+        // creates the file, now that we know the directory exists
+        let mut file = File::create(self.ioconfig.get_path_and_file())?;
         self.save_global_to(&mut file)?;
 
         if self.local.is_some() {
-            let mut local_file  = File::create(self.ioconfig.get_local_path())?;
+            let mut local_file  = File::create(self.ioconfig.get_local_path_and_filename())?;
             self.save_local_to(&mut local_file)?;
         }
 
@@ -182,6 +187,17 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
 
     pub fn delete_key_global(&mut self, key_path : &str) -> Option<Type> {
         self.global.delete_key(key_path)
+    }
+
+    pub fn delete_file_global(&self) -> bool {
+        self.global.delete_file()
+    }
+
+    pub fn delete_file_local(&self) -> bool {
+        match fs::remove_file(self.ioconfig.get_local_path_and_filename()){
+            Err(_) => false,
+            Ok(_) => true,
+        }
     }
 }
 

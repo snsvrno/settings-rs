@@ -201,7 +201,7 @@ pub trait Format {
         }
     }
 
-    fn get_local_path(&self) -> String {
+    fn get_local_path_and_filename(&self) -> String {
         //! returns the path where the local configuration
         //! would be.
         
@@ -213,7 +213,6 @@ pub trait Format {
             // a directory in order to run it.
             Err(_) => { panic!(); },
             Ok(mut path) => {
-                path.push(self.folder());
                 if let Some(local_filename) = self.get_local_filename() {
                     path.push(local_filename);
                 } else {

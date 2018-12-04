@@ -15,7 +15,8 @@ use SupportedType;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
 use std::collections::HashMap;
-use std::fs::{create_dir_all, File};
+use std::fs::File;
+use std::fs;
 use failure::Error;
 
 
@@ -98,9 +99,7 @@ impl<T> Settings<T> where T : Format + Clone {
         //! be used for initalizing a new `Settings`, look at `create` and 
         //! `create_from` for that.
         
-        let mut file = File::open(self.ioconfig.get_path())?;
-        //FIXME: needs to create the path and file if it doesn't exist, 
-        // not error..
+        let mut file = File::open(self.ioconfig.get_path_and_file())?;
         self.load_from(&mut file)
     }
 
@@ -127,7 +126,7 @@ impl<T> Settings<T> where T : Format + Clone {
 
         // first makes sure all the directories exist before attempting to create
         // the file, so it has a place to make it
-        create_dir_all(self.ioconfig.get_path())?;
+        fs::create_dir_all(self.ioconfig.get_path())?;
         // creates the file, now that we know the directory exists
         let mut file = File::create(self.ioconfig.get_path_and_file())?;
         self.save_to(&mut file)
@@ -315,6 +314,13 @@ impl<T> Settings<T> where T : Format + Clone {
         returned_value
     }
 
+    pub fn delete_file(&self) -> bool {
+        match fs::remove_file(self.ioconfig.get_path_and_file()){
+            Err(_) => false,
+            Ok(_) => true,
+        }
+    }
+
     // flatten related functions //////////////////////////////////////////////////////
 
     fn get_flat_hash(&self) -> Settings<T> {
@@ -464,8 +470,8 @@ mod tests {
     #[derive(Clone)]
     struct Configuration { }
     impl Format for Configuration {
-        fn filename(&self) -> String { "config".to_string() }
-        fn folder(&self) -> String { ".settingsfiletest".to_string() }
+        fn filename(&self) -> String { "".to_string() }
+        fn folder(&self) -> String { "".to_string() }
 
         fn from_str<T>(&self,_:&str) -> Result<SettingsRaw,Error> where T : Format + Clone { 
             Ok(HashMap::<String,Type>::new())
@@ -578,7 +584,6 @@ mod tests {
         assert_eq!(None,setting.get_value("user.email"));
         assert_eq!(setting.get_value("software.update_available"),Some(Type::Switch(false)));
     }
-
 
 }
 

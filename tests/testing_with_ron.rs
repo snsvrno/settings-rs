@@ -1,5 +1,5 @@
 extern crate settingsfile;
-use settingsfile::{Settings, SupportedType, SettingsRaw, Format};
+use settingsfile::{ShadowSettings, Settings, SupportedType, SettingsRaw, Format, Type};
 
 
 #[macro_use] extern crate failure; use failure::Error;
@@ -68,4 +68,70 @@ fn decoding_and_reencoding() {
     let loaded_setting = Settings::create_from(&mut tempfile,Configuration{}).unwrap();
     assert_eq!(loaded_setting.get_value("user.name"),test.get_value("user.name"));
 
+}
+
+#[test]
+#[ignore]
+fn file_reading_and_writing_settings() {
+    let mut test = Settings::new(Configuration{});
+    // cleanup if test was run before
+    test.delete_file();
+
+    assert!(test.set_value("user.name", "snsvrno").is_ok());
+    if let Err(error) = test.save() {
+        println!("{:?}",error); 
+        assert!(false);
+    }
+
+    let mut other_test = Settings::new(Configuration{});
+    
+    if let Err(error) = other_test.load() {
+        println!("{:?}",error); 
+        assert!(false);
+    }
+
+    assert_eq!(other_test.get_value("user.name"),test.get_value("user.name"));
+}
+
+#[test]
+#[ignore]
+fn file_reading_and_writing_shadow_settings() {
+    let mut test = ShadowSettings::new(Configuration{});
+
+    // cleanup from older tests / if still on disk
+    test.delete_file_global();
+    test.delete_file_local();
+    
+    // setup first case
+    assert!(test.set_value_global("user.name", "other username").is_ok());
+
+    if let Err(error) = test.save() {
+        println!("{:?}",error); 
+        assert!(false);
+    }
+    // loads the first case
+    let mut other_test = ShadowSettings::new(Configuration{});
+
+    if let Err(error) = other_test.load() {
+        println!("{:?}",error); 
+        assert!(false);
+    };
+
+    assert_eq!(other_test.get_value("user.name"),test.get_value("user.name"));
+
+    // set up second case
+    assert!(test.set_value_local("user.name", "debug tester").is_ok());
+    if let Err(error) = test.save() {
+        println!("{:?}",error); 
+        assert!(false);
+    }
+
+    if let Err(error) = other_test.load() {
+        println!("{:?}",error); 
+        assert!(false);
+    };
+
+    assert_eq!(other_test.get_value_local("user.name"),Some(Type::Text("debug tester".to_string())));
+    assert_eq!(other_test.get_value_global("user.name"),Some(Type::Text("other username".to_string())));
+    assert_eq!(other_test.get_value("user.name"),Some(Type::Text("debug tester".to_string())));
 }
