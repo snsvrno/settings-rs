@@ -136,13 +136,10 @@ impl<T> Settings<T> where T : Format + Clone {
         match self.ioconfig.to_string(&self.global){
             Err(error) => return Err(error),
             Ok(settings_string) => {
-                //match write!(file,"{}",settings_string) {
-                //    Ok(_) => Ok(()),
-                //    Err(error) => Err(format_err!("{}",error)),
-                //}
-                println!("the string : {}",settings_string);
-                println!("wrote {:?} bytes",file.write(settings_string.as_bytes()));
-                Ok(())
+                match file.write(settings_string.as_bytes()){
+                    Ok(_) => Ok(()),
+                    Err(error) => Err(format_err!("{}",error)),
+                }
             }
         }
     }
@@ -302,25 +299,10 @@ impl<T> Settings<T> where T : Format + Clone {
             returned_value = self.global.remove(key_path);
         } else if global.len() > 0 && path_tree.len() > 0 {
             let index = global.len()-1;
-            println!("{} {}",index,global.len());
             if let Type::Complex(ref mut parts_two) = global[index] {
-                println!("{:?}",parts_two);
-                println!("{}",path_tree[path_tree.len()-1]);
                 returned_value = parts_two.remove(path_tree[path_tree.len()-1]);
-                println!("{:?}",returned_value);
             }
         }
-        
-        // rebuilds the tree, if there is a tree to rebuild (global.len() > 1)
-
-        /*if global.len() > 1 {
-            for i in (1..global.len()).rev() {
-                let temp_part = global.remove(i);
-                if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
-                    parts_minus_1.insert(path_tree[i].to_string(),temp_part);
-                }
-            }
-        }*/
 
         if global.len() > 0 {
             self.global.insert(path_tree[0].to_string(),global.remove(0));
