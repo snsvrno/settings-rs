@@ -3,8 +3,11 @@ use SupportedType;
 
 use failure::Error;
 use std::collections::HashMap;
-use std::env;
 use serde::ser::Serialize;
+
+use dirs;
+use std::env;
+use std::path::PathBuf;
 
 /// A convience type that is used to shorten the required return 
 /// type for the `Format` trait implemnetations. This does not need 
@@ -142,7 +145,33 @@ pub trait Format {
         //! will give the correct path depending on what was implemented
         //! in the configuration
   
-        format!("{}/{}",self.folder(),self.get_filename())
+        match dirs::home_dir() {
+            // probably not the most graceful way to do this, but
+            // i don't know a likely scenario where you won't have
+            //
+            None => "".to_string(),
+            Some(mut dir) => {
+                dir.push(format!("{}",self.folder()));
+                dir.display().to_string()
+            }
+        }
+    }
+
+    // functions that shouldn't generally need to be implemented //
+    fn get_path_and_file(&self) -> String {
+        //! will give the correct path including file depending on what was implemented
+        //! in the configuration
+  
+        match dirs::home_dir() {
+            // probably not the most graceful way to do this, but
+            // i don't know a likely scenario where you won't have
+            //
+            None => "".to_string(),
+            Some(mut dir) => {
+                dir.push(format!("{}/{}",self.folder(),self.get_filename()));
+                dir.display().to_string()
+            }
+        }
     }
 
     fn get_filename(&self) -> String {

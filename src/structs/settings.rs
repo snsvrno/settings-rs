@@ -15,7 +15,7 @@ use SupportedType;
 use std::ops::{Add,AddAssign};
 use std::io::prelude::*;
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{create_dir_all, File};
 use failure::Error;
 
 
@@ -124,8 +124,12 @@ impl<T> Settings<T> where T : Format + Clone {
 
     pub fn save(&self) -> Result<(),Error> {
         //! saves the setting to a file, uses the `save_to` buffer function
-         
-        let mut file = File::create(self.ioconfig.get_path())?;
+
+        // first makes sure all the directories exist before attempting to create
+        // the file, so it has a place to make it
+        create_dir_all(self.ioconfig.get_path())?;
+        // creates the file, now that we know the directory exists
+        let mut file = File::create(self.ioconfig.get_path_and_file())?;
         self.save_to(&mut file)
     }
 
@@ -460,8 +464,8 @@ mod tests {
     #[derive(Clone)]
     struct Configuration { }
     impl Format for Configuration {
-        fn filename(&self) -> String { "".to_string() }
-        fn folder(&self) -> String { "".to_string() }
+        fn filename(&self) -> String { "config".to_string() }
+        fn folder(&self) -> String { ".settingsfiletest".to_string() }
 
         fn from_str<T>(&self,_:&str) -> Result<SettingsRaw,Error> where T : Format + Clone { 
             Ok(HashMap::<String,Type>::new())
