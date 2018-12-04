@@ -200,16 +200,31 @@ impl<T> Settings<T> where T : Format + Clone {
         let mut global : Vec<Type> = Vec::new();
         let path_tree : Vec<&str> = key_path.split(".").collect();
 
+        // goes through the split up key_path
+        // will run even if there is only 1 element in the split
+        // path.
         for i in 0..path_tree.len()-1 {
+            // if this is the first part then we want to initalize
+            // all the elements because we will be going into this element
+            // deeper with each step down the key_path 
             if i == 0 {
+                // checks if this is part of an existing setting,
+                // if it is then it will add it with pull it out of the setting
+                // and adde it to the global vector
                 if let Some(part) = self.global.remove(&path_tree[i].to_string()) {
                     if let Type::Complex(hash) = part { 
                         global.push(Type::Complex(hash)); 
                     } else { global.push(Type::Complex(HashMap::new())); }
+                // if this doesn't exist then we will create a new item.
                 } else { global.push(Type::Complex(HashMap::new())); }
+            // now for the rest we can work with the existing object
+            // we pulled out where `i == 0`
             } else {
-                let index = global.len()-1;
+                let index = global.len()-1; // the last element
                 let mut push_me : Option<Type> = None;
+                // checks if its a complex object, because then we need to add to it
+                //, if it isn't a complex then we will override whatever is there with
+                // a new blank complex.
                 if let Type::Complex(ref mut mut_parts) = global[index] {
                     if let Some(part) = mut_parts.remove(&path_tree[i].to_string()) {
                         if let Type::Complex(hash) = part { 
@@ -217,6 +232,9 @@ impl<T> Settings<T> where T : Format + Clone {
                         }
                     }
                 }
+                // the above section pulled out the hashmap that exists (if one exists)
+                // and places it in the `push_me` variable, i believe I did this because
+                // of access rights / borrow checker.
                 match push_me {
                     None => global.push(Type::Complex(HashMap::new())),
                     Some(push_me) => global.push(push_me)
@@ -224,21 +242,21 @@ impl<T> Settings<T> where T : Format + Clone {
             }
         }
 
-        if let Type::Complex(ref mut parts_two) = global[path_tree.len()-2] {
-            parts_two.insert(path_tree[path_tree.len()-1].to_string(),value.wrap());
-        }
-
+        // inserts the desired value into the tree, so we can rebuild it and insert it
+        global.push(value.wrap());
         
         // rebuilds the tree
         if global.len() > 1 {
-                for i in (1..global.len()).rev() {
-                        let temp_part = global.remove(i);
-                        if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
-                            parts_minus_1.insert(path_tree[i].to_string(),temp_part);
-                        }
-                }        
+            for i in (1..global.len()).rev() {
+                let temp_part = global.remove(i);
+                if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
+                    parts_minus_1.insert(path_tree[i].to_string(),temp_part);
+                }
+            }        
         }
 
+        // inserts the last part of the global list into the 
+        // settings
         self.global.insert(path_tree[0].to_string(),global.remove(0));
 
         Ok(())
@@ -270,7 +288,7 @@ impl<T> Settings<T> where T : Format + Clone {
                     }
                 }
                 match push_me {
-                    None => global.push(Type::Complex(HashMap::new())),
+                    None => global.push(Type::None),
                     Some(push_me) => global.push(push_me)
                 }
             }
@@ -282,20 +300,29 @@ impl<T> Settings<T> where T : Format + Clone {
         // to delete the key.
         if path_tree.len() == 1 {
             returned_value = self.global.remove(key_path);
-        } else {
-            if let Type::Complex(ref mut parts_two) = global[path_tree.len()-2] {
+        } else if global.len() > 0 && path_tree.len() > 0 {
+            let index = global.len()-1;
+            println!("{} {}",index,global.len());
+            if let Type::Complex(ref mut parts_two) = global[index] {
+                println!("{:?}",parts_two);
+                println!("{}",path_tree[path_tree.len()-1]);
                 returned_value = parts_two.remove(path_tree[path_tree.len()-1]);
+                println!("{:?}",returned_value);
             }
         }
         
         // rebuilds the tree, if there is a tree to rebuild (global.len() > 1)
-        if global.len() > 1 {
-                for i in (1..global.len()).rev() {
-                        let temp_part = global.remove(i);
-                        if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
-                            parts_minus_1.insert(path_tree[i].to_string(),temp_part);
-                        }
+
+        /*if global.len() > 1 {
+            for i in (1..global.len()).rev() {
+                let temp_part = global.remove(i);
+                if let Type::Complex(ref mut parts_minus_1) = global[i-1] {
+                    parts_minus_1.insert(path_tree[i].to_string(),temp_part);
                 }
+            }
+        }*/
+
+        if global.len() > 0 {
             self.global.insert(path_tree[0].to_string(),global.remove(0));
         }
         
@@ -471,10 +498,12 @@ mod tests {
         assert_eq!(test_obj.set_value("a.b.c.d","mortan").is_ok(),true);
         assert_eq!(test_obj.set_value("a.b.f",&4453).is_ok(),true);
         assert_eq!(test_obj.set_value("a.is_enabled",&true).is_ok(),true);
+        assert_eq!(test_obj.set_value("single",&true).is_ok(),true);
 
         assert_eq!(test_obj.get_value("a.b.c.d"),Some(Type::Text("mortan".to_string())));
         assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
         assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
+        assert_eq!(test_obj.get_value("single"),Some(Type::Switch(true)));
     }
 
     #[test]
@@ -546,14 +575,22 @@ mod tests {
         assert!(setting.set_value("user.email","someone@someplace.com").is_ok());
         assert!(setting.set_value("software.version",&23).is_ok());
         assert!(setting.set_value("software.update_available",&false).is_ok());
-
+        // checks one key is set properly
         assert_eq!(setting.get_value("software.version"),Some(Type::Int(23)));
-
+        // deletes
         assert_eq!(setting.delete_key("software.version"),Some(Type::Int(23)));
+        // checks only the delete key is gone
+        assert_eq!(None,setting.get_value("software.version"));
+        assert_eq!(setting.get_value("software.update_available"),Some(Type::Switch(false)));
+        assert_eq!(setting.get_value("user.email"),Some(Type::Text("someone@someplace.com".to_string())));
+        assert_eq!(setting.get_value("user.name"),Some(Type::Text("the username".to_string())));
+        // deleting a subgroup
         setting.delete_key("user");
+        // checking if the right stuff is gone and the rest is still there.
         assert_eq!(None,setting.get_value("software.version"));
         assert_eq!(None,setting.get_value("user.name"));
         assert_eq!(None,setting.get_value("user.email"));
+        assert_eq!(setting.get_value("software.update_available"),Some(Type::Switch(false)));
     }
 
 
