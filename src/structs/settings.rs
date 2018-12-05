@@ -115,7 +115,7 @@ impl<T> Settings<T> where T : Format + Clone {
         } 
     }
 
-    pub fn new_and_load_or_empty(config : T) -> Settings<T> {
+    pub fn new_and_load(config : T) -> Settings<T> {
         //! A onliner to create a `Settings` and load from the config location.
         //! 
         //! Basically the same thing as `.new()` and `.load()`. The main difference

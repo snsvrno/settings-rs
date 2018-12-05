@@ -45,6 +45,8 @@ pub struct ShadowSettings<T> where T : Format + Clone {
 
 impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn new(config : T) -> ShadowSettings<T> { 
+        //! Creates a new `ShadowSetting` with both global and local `Settings` empty.
+        
         ShadowSettings {
             ioconfig : config.clone(),
             global : Settings::new(config.clone()),
@@ -52,8 +54,25 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         }
     }
 
+    pub fn new_and_load(config : T) -> ShadowSettings<T> {
+        //! A onliner to create a `Settings` and load from the config location.
+        //! 
+        //! Basically the same thing as `.new()` and `.load()`. The main difference
+        //! is you don't need to give your Settings mutability if you don't need it.
+        //! 
+        //! Will return an empty setting if it fails loading the file for some reason.
+        //! A `warn!()` (from the [log](https://crates.io/crates/log) crate) will be
+        //! used if the loading fails.
+        
+        let mut setting = ShadowSettings::new(config);
+        if let Err(error) = setting.load() {
+            warn!("{}",error);
+        }
+        setting
+    }
+
     pub fn create_from(mut file : &File, config : T) -> Result<ShadowSettings<T>,Error> {
-        //! assumse global
+        //! Creates a new `ShadowSetting` and loads the file buffer into the global `Setting`.
         
         Ok(ShadowSettings {
             ioconfig : config.clone(),
@@ -65,12 +84,42 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn load(&mut self) -> Result<(),Error> {
         //! attempts to load both local and global
         
+        let result_global = self.load_global();
+        let result_local = self.load_local();
+
+        // combining the errors, doing this because if one of the loads fails it will
+        // not finish the loading
+        if result_global.is_err() && result_local.is_err() {
+            return Err(format_err!("Global: {}, Local: {}",result_global.unwrap_err(),result_local.unwrap_err()));
+        } else if result_global.is_err() {
+            return Err(format_err!("Global: {}",result_global.unwrap_err()));
+        } else if result_local.is_err() {
+            return Err(format_err!("Local: {}",result_local.unwrap_err()));
+        }
+
+        Ok(())
+    }
+
+    pub fn load_global(&mut self) -> Result<(),Error> {
+        //! Loads the global file, or errors
+        //!
+        //! Usually not a breaking error, since it mostly 
+        //! errors because there isn't a file.
+        
         let global_path = self.ioconfig.get_path_and_file();
         if let Ok(mut file) = File::open(&global_path) {
             info!("Using {} for global file",global_path);
             self.load_global_from(&mut file)?;
         }
 
+        Ok(())
+    }
+
+    pub fn load_local(&mut self) -> Result<(),Error> {
+        //! Loads the local file, or errors
+        //!
+        //! Usually not a breaking error, since it mostly 
+        //! errors because there isn't a file.
         let local_path = self.ioconfig.get_local_path_and_filename();
         if let Ok(mut file) = File::open(&local_path) {
             info!("Using {} for local file",local_path);
@@ -81,11 +130,19 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     }
 
     pub fn load_global_from(&mut self, file : &mut File) -> Result<(),Error> {
+        //! Loads the file buffer over the existing global `Settings`, replacing it.
+        //! 
+        //! Will fail if it cannot read the buffer.
+
         self.global = Settings::create_from(file, self.ioconfig.clone())?;
         Ok(())
     }
 
     pub fn load_local_from(&mut self, file : &mut File) -> Result<(),Error> {
+        //! Loads the file buffer over the existing local `Settings`, replacing it.
+        //! 
+        //! Will fail if it cannot read the buffer.
+        
         self.local = Some(Settings::create_from(file, self.ioconfig.clone())?);
         Ok(()) 
     }
@@ -113,16 +170,33 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     }
 
     pub fn save_global_to(&self, file : &File) -> Result<(),Error> {
+        //! Saves the global `Setting` to a file buffer.
+        
         self.global.save_to(file)
     }
 
     pub fn save_local_to(&self, file : &File) -> Result<(), Error> {
+        //! Saves the global `Setting` to a file buffer.
+        //!
+        //! Will return Ok even if there isn't any local settings. I.E. if
+        //! the `Settings` object never had any data in the local `Settings`
+        //! it will return an `Ok` but it will not have written anything to 
+        //! the disk.
+        
         if let Some(ref local) = self.local {
             local.save_to(file)
-        } else { Ok(() )}
+        } else { 
+            info!("Attempting to save local settings but none exist.");
+            Ok(())
+        }
     }
 
     pub fn get_value(&self, key_path : &str) -> Option<Type> {
+        //! Gets the most accurate value from the `key_path`.
+        //! 
+        //! Since this is 'shadowing', `Settings` will look in both
+        //! the local and global `Settings` to determine what value to
+        //! return. The local value will always override the global value.
         
         if let Some(ref local) = self.local {
             match local.get_value(key_path) {
