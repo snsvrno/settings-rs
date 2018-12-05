@@ -1,10 +1,23 @@
-//! Trait for data types that can be inserted into a `Settings`.
-//! Implementing this trait for a custom struct will allow this 
-//! struct to be used with `Settings` directly.
 use std::collections::HashMap;
 use Type;
 
+/// Trait for data types that can be inserted into a `Settings`.
+/// 
+/// Implementing this trait for a custom struct will allow this 
+/// struct to be used with `Settings` directly.
+/// 
+/// # Implemented Types
+/// 
+/// - String
+/// - bool
+/// - i32
+/// - f32
+/// - Vec<Type>
+/// - HashMap<String,Type>
+/// 
 pub trait SupportedType {
+
+    /// Function to wrap the type into a [Type](enum.Type.html)
     fn wrap(&self) -> Type;
 }
 

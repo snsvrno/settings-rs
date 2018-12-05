@@ -104,7 +104,10 @@ impl<T> Settings<T> where T : Format + Clone {
     // functions for create new instances of Settings
 
     pub fn new(config : T) -> Settings<T> { 
-        //! Creates an empty `Settings` from a configuration
+        //! Creates an empty `Settings` from a configuration.
+        //! 
+        //! Initally the settings doesn't have any data and needs
+        //! to have data inserted, `set` or loaded, `::load()`.
 
         Settings { 
             global : HashMap::new(),
@@ -112,10 +115,29 @@ impl<T> Settings<T> where T : Format + Clone {
         } 
     }
 
+    pub fn new_and_load_or_empty(config : T) -> Settings<T> {
+        //! A onliner to create a `Settings` and load from the config location.
+        //! 
+        //! Basically the same thing as `.new()` and `.load()`. The main difference
+        //! is you don't need to give your Settings mutability if you don't need it.
+        //! 
+        //! Will return an empty setting if it fails loading the file for some reason.
+        //! A `warn!()` (from the [log](https://crates.io/crates/log) crate) will be
+        //! used if the loading fails.
+        
+        let mut setting = Settings::new(config);
+        if let Err(error) = setting.load() {
+            warn!("{}",error);
+        }
+        setting
+    }
+
     fn from_flat(flat_hash : &Settings<T>) -> Settings<T> {
-        //! creates a settings from a flatten `Settings`. A flat settings is a 
+        //! Creates a settings from a flatten `Settings`. A flat settings is a 
         //! `Settings` that doesn't have any `Type::Complex`, so there is only
         //! one level of depth.
+        //! 
+        //! Only used in `+` and `+=`
 
         let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
@@ -132,9 +154,11 @@ impl<T> Settings<T> where T : Format + Clone {
     // accessing stored versions of the Settings that isn't in memory.
 
     pub fn create_from(mut file : &File, config : T) -> Result<Settings<T>,Error> {
-        //! Loads the content of a `File` using the configuration. Doesn't use
-        //! a path or doesn't infer the path from the config because this method
-        //! is easier to do testing on to ensure everything behaves as expected
+        //! Loads the content of a `File` using the configuration, but doesn't use
+        //! a path or doesn't infer the path from the config.
+        //! 
+        //! Primariy made for testing serializing and deserializing the struture, but
+        //! can also because to force the `setting` to load from a file buffer
 
         // loads the raw file into a buffer
         let mut buf : String = String::new();
@@ -164,10 +188,13 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn load(&mut self) -> Result<(),Error> {
-        //! loads from the file defined in ioconfig
-        //! if nothing exists it throws an error. This shouldn't
+        //! Loads `Setting` data from the file defined in the configuration.
+        //! 
+        //! If nothing exists it throws an error. This shouldn't
         //! be used for initalizing a new `Settings`, look at `create` and 
         //! `create_from` for that.
+        //! 
+        //! _Will override the existing data of a `Setting`_
         
         let path = self.ioconfig.get_path_and_file();
         info!("Loading from {}",path);
@@ -179,8 +206,9 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn load_from(&mut self, file : &mut File) -> Result<(),Error> {
-        //! loads into the current `Setting` with the buffer
-        //! of the file
+        //! Loads into the current `Setting` from a file.
+        //! 
+        //! _Will override the existing data of a `Setting`_
 
         // loads the raw file into a buffer
         let mut buf : String = String::new();
@@ -197,7 +225,7 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn save(&self) -> Result<(),Error> {
-        //! saves the setting to a file, uses the `save_to` buffer function
+        //! Saves the setting to a file defined in the configuraton.
 
         let path = self.ioconfig.get_path_and_file();
         info!("Saving to {}",path);
@@ -210,8 +238,7 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn save_to(&self, mut file : &File) -> Result<(),Error> {
-        //! saves the setting to a file buffer. Maybe done this way because 
-        //! of ease of writing good tests?
+        //! saves the setting to a file buffer.
 
         match self.ioconfig.to_string(&self.global){
             Err(error) => return Err(error),
@@ -227,8 +254,12 @@ impl<T> Settings<T> where T : Format + Clone {
     // io - object functions ///////////////////////////////////////////////////////////////////
     // interactions with the `Settings` struct data
 
-    pub fn get_value_absolute(&self, key_path : &str) -> Option<Type> {
-        //! normally you should always use `get_value`, as it properly splits
+    
+    #[allow(dead_code)]
+    fn get_value_absolute(&self, key_path : &str) -> Option<Type> {
+        //! Get the value of the `key_path`, but doesn't split the `key_path`.
+        //! 
+        //! Normally you should always use `get_value`, as it properly splits
         //! the key_path to get the correct value in the tree.
         //! if you are working with a flattend `Settings` then `get_value`
         //! will not work as it will attempt to split the key and it will find 
@@ -242,7 +273,9 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn get_value(&self, key_path : &str) -> Option<Type> {
-        //! looks for a `key_path` in dot notation and returns an `Option` 
+        //! Get the saved value inside of a `Setting`
+        //! 
+        //! Looks for a `key_path` in dot notation and returns an `Option` 
         //! containing the value if it exists.
         
         let path_tree : Vec<&str> = key_path.split(".").collect();
@@ -273,6 +306,10 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn get_value_or<A:?Sized>(&self, key_path : &str, default_value : &A) -> Type
         where A : SupportedType, 
     {
+        //! Wraps `get_value` so instead of an `Option` the result will always be a type.
+        //! 
+        //! The default value can be any type that implements [SupportedType](traits.SupportedType.html)
+        
         match self.get_value(key_path) {
             Some(value) => value,
             None => default_value.wrap(),
@@ -282,7 +319,8 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn set_value<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
         where A : SupportedType ,
     {
-        //! sets the value of a key, uses a generic that must implement the `SupportedType` trait
+        //! sets the value of a key, uses a generic that must implement
+        //! the [SupportedType](traits.SupportedType.html) trait
         
         let mut global : Vec<Type> = Vec::new();
         let path_tree : Vec<&str> = key_path.split(".").collect();
@@ -350,7 +388,7 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn delete_key(&mut self, key_path : &str) -> Option<Type> {
-        //! deletes the key and returns the current value, 
+        //! Deletes the key and returns the current value, 
         //! returns none if the key didn't exist.
         
         let mut global : Vec<Type> = Vec::new();
@@ -402,6 +440,8 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn delete_file(&self) -> bool {
+        //! Deletes the physical file from the disk
+        
         let path = self.ioconfig.get_path_and_file();
         info!("Deleting {}",path);
         match fs::remove_file(path){

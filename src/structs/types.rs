@@ -1,6 +1,19 @@
 use std::collections::HashMap;
 use std::fmt;
 
+
+/// Generic type enum used to work with data inside a `Settings`
+/// 
+/// Only should be used when interacting with the result of a 
+/// `get_value`.
+/// 
+/// ```rust
+/// match setting::get_value("options") {
+///     Type::Text(option) => { }, // a single option selected
+///     Type::Array(options) => { }, // multiple options here,
+///     _ => { }, // probably not valid because options in this case are strings
+/// }
+/// ```
 #[derive(Serialize,Deserialize,Debug,Clone,PartialEq)]
 #[serde(untagged)]
 pub enum Type {

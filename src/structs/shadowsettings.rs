@@ -122,18 +122,6 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         } else { Ok(() )}
     }
 
-    pub fn get_value_absolute(&self, key_path : &str) -> Option<Type> {
-        
-        if let Some(ref local) = self.local {
-            match local.get_value_absolute(key_path) {
-                None => self.global.get_value_absolute(key_path),
-                Some(value) => Some(value),
-            }
-        } else {
-            self.global.get_value_absolute(key_path)
-        }
-    }
-
     pub fn get_value(&self, key_path : &str) -> Option<Type> {
         
         if let Some(ref local) = self.local {

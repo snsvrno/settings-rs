@@ -9,11 +9,46 @@ use dirs;
 use std::env;
 
 /// A convience type that is used to shorten the required return 
-/// type for the `Format` trait implemnetations. This does not need 
-/// to be used by the users of this library, though makes code a little
-/// shorter.
+/// type for the `Format` trait implemnetations. 
+/// 
+/// This does not need to be used by the users of this library, 
+/// though makes code a little shorter.
 pub type SettingsRaw = HashMap<String,Type>;
 
+/// Trait for defining the physical properties of a `Settings`
+/// 
+/// # Example Usage
+/// 
+/// This example uses the [ron](https://crates.io/crates/ron) crate
+/// and is taken from the test 
+/// [testing_with_ron](https://github.com/snsvrno/settingsfile-rs/blob/master/tests/testing_with_ron.rs)
+/// 
+/// ```rust
+/// #[derive(Clone)]
+/// struct EmptyConfig { }
+/// 
+/// // implementing the trait here, only doing the required methods
+/// impl Format for EmptyConfig {
+///     fn filename(&self) -> String { "config.ron".to_string() }
+///     fn folder(&self) -> String { ".config/app".to_string() }
+/// 
+///     fn from_str<T>(&self,buffer:&str) -> Result<SettingsRaw,Error> 
+///         where T : Format + Clone 
+///     {
+///         ron::de::from_str(&buffer)
+///     }
+/// 
+///     fn to_string<T:Sized>(&self,object:&T) -> Result<String,Error>
+///         where T : SupportedType + serde::ser::Serialize, 
+///     {
+///         ron::ser::to_string(object)
+///     }
+/// }
+/// 
+/// fn main() {
+///     let settings = Settings::new(EmptyConfig{});
+/// }
+/// ```
 pub trait Format {
 
     // need to be implemneted //////////////////////////////////////
@@ -29,7 +64,7 @@ pub trait Format {
     /// ```
     /// 
     /// The entire name + extension can be used here as well if 
-    /// you don't want to use the [extension()](#extension) function.
+    /// you don't want to use the [extension()](#method.extension) function.
     /// 
     /// ```rust,ignore
     /// fn filename(&self) -> String {
@@ -80,7 +115,7 @@ pub trait Format {
     /// [testing_with_ron](https://github.com/snsvrno/settingsfile-rs/blob/master/tests/testing_with_ron.rs)
     fn to_string<T>(&self,object:&T) -> Result<String,Error> where T : SupportedType + Serialize;
     
-    /// the decoding function, will return a deserialized form 
+    /// The decoding function, will return a deserialized form 
     /// of a the `Settings` Rust Struct.
     /// 
     /// Typically this is a wrapped passthrough to the serde library you are using. 
@@ -104,7 +139,7 @@ pub trait Format {
 
     // have default implemntations ////////////////////////////////
     fn extension(&self) -> Option<String> {
-        //! option to allow for an extension separate from filename,
+        //! Option to allow for an extension separate from filename,
         //! you can always put the extension in the filename if you 
         //! perfer.
         //! 
@@ -124,7 +159,7 @@ pub trait Format {
     }
 
     fn local_filename(&self) -> Option<String> {
-        //! option to allow for a different filename for a local
+        //! Option to allow for a different filename for a local
         //! file. only used with `ShadowSetting`. Functions the same 
         //! as `filename`, does not include an extension.
         
@@ -132,7 +167,7 @@ pub trait Format {
     }
 
     fn local_extension(&self) -> Option<String> {
-        //! option to allow for an extension when using a different
+        //! Option to allow for an extension when using a different
         //! local file name. only used with `ShadowSetting`. Doesn't 
         //! do anything if `local_filename` is `None`
         
@@ -141,7 +176,7 @@ pub trait Format {
 
     // functions that shouldn't generally need to be implemented //
     fn get_path(&self) -> String {
-        //! will give the correct path depending on what was implemented
+        //! Will give the correct path depending on what was implemented
         //! in the configuration
   
         match dirs::home_dir() {
@@ -158,7 +193,7 @@ pub trait Format {
 
     // functions that shouldn't generally need to be implemented //
     fn get_path_and_file(&self) -> String {
-        //! will give the correct path including file depending on what was implemented
+        //! Will give the correct path including file depending on what was implemented
         //! in the configuration
   
         match dirs::home_dir() {
@@ -174,7 +209,7 @@ pub trait Format {
     }
 
     fn get_filename(&self) -> String {
-        //! returns the complete file name with or without
+        //! Returns the complete file name with or without
         //! the extension (if defined)
         
         if let Some(ext) = self.extension() {
@@ -185,7 +220,7 @@ pub trait Format {
     }
 
     fn get_local_filename(&self) -> Option<String> {
-        //! assembles the local file name, will return
+        //! Assembles the local file name, will return
         //! `None` if local_filename is `None`
          
         match self.local_filename() {
@@ -201,7 +236,7 @@ pub trait Format {
     }
 
     fn get_local_path_and_filename(&self) -> String {
-        //! returns the path where the local configuration
+        //! Returns the path where the local configuration
         //! would be.
         
         match env::current_dir() {
