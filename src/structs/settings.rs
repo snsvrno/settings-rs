@@ -1,13 +1,4 @@
-/// the main guts of `Settingsfile-rs`. The `Settings` struct
-/// interacts with the file system to serialize / deserialize
-/// configurations / settings and then allow easy navigation
-/// and maniulation.
-/// 
-/// `Settings` only reads data from one source and doesn't do
-/// any 'shadowing', so if you want to override settings based
-/// on a local user configuration, use the `ShadowSettings`
-/// struct instead.
- 
+
 use Format;
 use Type;
 use SupportedType;
@@ -19,7 +10,85 @@ use std::fs::File;
 use std::fs;
 use failure::Error;
 
-
+/// Basic one file settings
+///
+/// The main guts of `Settingsfile-rs`. The `Settings` struct
+/// interacts with the file system to serialize / deserialize
+/// configurations / settings and then allow easy navigation
+/// and maniulation.
+/// 
+/// `Settings` only reads data from one source and doesn't do
+/// any 'shadowing', so if you want to override settings based
+/// on a local user configuration, use the 
+/// [ShadowSettings](struct.ShadowSettings.html)
+/// struct instead.
+/// 
+/// # Examples
+/// 
+/// ## General Use 
+/// 
+/// Say a file looked like this, and was defined in the Format Config
+/// ```json
+/// {
+///     "user" : {
+///         "name" : "user's name",
+///         "email" : "user's email"
+///     }
+/// }
+/// ```
+/// We could access the data like this.
+/// 
+/// ```rust
+/// use Settings;
+/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// 
+/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// if let Some(value) = app_settings.get_value("user.name") {
+///     println!("username is {}",value); // would print "username is user's name"
+/// }
+/// ```
+/// 
+/// And if we weren't sure if the user would set a certain value, but would need
+/// something during running we can define a default value.
+/// 
+/// ```rust
+/// use Settings;
+/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// 
+/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// let font_size = app_settings.get_value_or("font.size",&12);
+/// println!("Font size is {}",font_size); // will either be 12 or whatever the user sets.
+/// ```
+/// 
+/// ## Data Validation
+/// 
+/// Rust is heavy on type safe, and so is `settingsfile`. By default a settings file can only 
+/// contain the following types (defined in the [Type](enum.Type.html) enum)
+/// 
+/// - Text
+/// - Int
+/// - Float
+/// - Switch
+/// - Array (of any combination of above)
+/// - HashMap (of any combination of above)
+/// 
+/// Every result of a `get` will return a [Type](enum.Type.html) that you will need to match in
+/// order to use the data. The only except is when you print / format it, as `Type` implements
+/// display.
+/// 
+/// Using the fontsize example above.
+/// 
+/// ```rust
+/// use Settings;
+/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// 
+/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// if let Type::Int(size) = app_settings.get_value_or("font.size",&12) {
+///     println!("Setting font size to {}",size);
+/// } else {
+///     println!("Setting font.size must be an int!");
+/// }
+/// ```
 #[derive(Serialize,Deserialize,Clone)]
 pub struct Settings<T> where T : Format + Clone {
     // contains all the data. a hashmap of Type(s)
@@ -199,6 +268,15 @@ impl<T> Settings<T> where T : Format + Clone {
         }
 
         return Some(subtree.clone());
+    }
+
+    pub fn get_value_or<A:?Sized>(&self, key_path : &str, default_value : &A) -> Type
+        where A : SupportedType, 
+    {
+        match self.get_value(key_path) {
+            Some(value) => value,
+            None => default_value.wrap(),
+        }
     }
 
     pub fn set_value<A:?Sized>(&mut self, key_path : &str, value : &A) -> Result<(),Error> 
@@ -507,6 +585,17 @@ mod tests {
         assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
         assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
         assert_eq!(test_obj.get_value("single"),Some(Type::Switch(true)));
+    }
+
+    #[test]
+    fn get_value_or() {
+        let mut test_obj = Settings::new(Configuration{});
+
+        assert_eq!(test_obj.set_value("a.b.c.d","mortan").is_ok(),true);
+        assert_eq!(test_obj.set_value("a.b.c.e","bobby lee").is_ok(),true);
+
+        assert_eq!(test_obj.get_value_or("a.b.c.d", "not going to be used"),Type::Text("mortan".to_string()));
+        assert_eq!(test_obj.get_value_or("a.b.c.f", "will be used"),Type::Text("will be used".to_string()));
     }
 
     #[test]

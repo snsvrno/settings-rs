@@ -1,5 +1,5 @@
 # rust artifacts and files
-/target/
+/target
 **/*.rs.bk
 Cargo.lock
 

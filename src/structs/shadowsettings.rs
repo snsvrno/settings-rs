@@ -1,3 +1,14 @@
+use Format;
+use Type;
+use Settings;
+use SupportedType;
+
+use std::fs;
+use std::fs::File;
+use failure::Error;
+
+/// Complex settings that pulls data from 2 locations
+/// 
 /// The more complex `Settings` style struct that can be used, 
 /// designed as a wrapper around `Settings` that allows for 
 /// configuration 'Shadowing', which means you can override 
@@ -9,23 +20,22 @@
 /// (the same location as `Settings` would look) and then looks
 /// for the same file in the current working directory. 
 /// 
-/// For example, if you defined your configuration as a toml at
-/// "~/.config/app/settings.toml" then it will look for a local
-/// file in the current working directory called "settings.toml".
+/// `ShadowSettings` works the same as [Settings](struct.Settings.html)
+/// except for the additional functions to `get` and `set` locally or 
+/// globally. See [Settings](struct.Settings.html) or the 
+/// [ron test](https://github.com/snsvrno/settingsfile-rs/blob/master/tests/testing_with_ron.rs)
+/// to see how its used.
 /// 
-/// You can use the "Configuration" struct / `Format` trait to
+/// # Example
+/// 
+/// If you defined your configuration as a toml at
+/// `~/.config/app/settings.toml` then it will look for a local
+/// file in the current working directory called `settings.toml`.
+/// 
+/// You can use the `Format` trait to
 /// allow hidden files (i.e. ".settings.toml") or even define an
-/// alternate name for the local file (".myapp")
-
-use Format;
-use Type;
-use Settings;
-use SupportedType;
-
-use std::fs;
-use std::fs::File;
-use failure::Error;
-
+/// alternate name for the local file (".myapp"). See 
+/// [Format](trait.format.html) for more information.
 #[derive(Serialize,Deserialize,Clone)]
 pub struct ShadowSettings<T> where T : Format + Clone {
     ioconfig: T,
@@ -151,6 +161,15 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
             self.global.get_value(key_path)
         }
     }
+
+    pub fn get_value_or<A:?Sized>(&self, key_path : &str, default_value : &A) -> Type
+        where A : SupportedType,
+    {
+        match self.get_value(key_path) {
+            Some(value) => value,
+            None => default_value.wrap(),
+        }
+    }
     
     pub fn get_value_local(&self, key_path : &str) -> Option<Type> {
         match self.local {
@@ -260,6 +279,17 @@ mod tests {
         assert_eq!(test_obj.get_value("a.b.c.e"),Some(Type::Text("bobby lee".to_string())));
         assert_eq!(test_obj.get_value("a.b.f"),Some(Type::Int(4453)));
         assert_eq!(test_obj.get_value("a.is_enabled"),Some(Type::Switch(true)));
+    }
+
+    #[test]
+    fn get_value_or() {
+        let mut test_obj = ShadowSettings::new(Configuration{});
+
+        assert_eq!(test_obj.set_value_global("a.b.c.d","mortan").is_ok(),true);
+        assert_eq!(test_obj.set_value_global("a.b.c.e","bobby lee").is_ok(),true);
+
+        assert_eq!(test_obj.get_value_or("a.b.c.d", "not going to be used"),Type::Text("mortan".to_string()));
+        assert_eq!(test_obj.get_value_or("a.b.c.f", "will be used"),Type::Text("will be used".to_string()));
     }
 
     #[test]
