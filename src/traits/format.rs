@@ -7,7 +7,6 @@ use serde::ser::Serialize;
 
 use dirs;
 use std::env;
-use std::path::PathBuf;
 
 /// A convience type that is used to shorten the required return 
 /// type for the `Format` trait implemnetations. This does not need 

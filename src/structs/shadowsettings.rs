@@ -55,11 +55,15 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn load(&mut self) -> Result<(),Error> {
         //! attempts to load both local and global
         
-        if let Ok(mut file) = File::open(self.ioconfig.get_path_and_file()) {
+        let global_path = self.ioconfig.get_path_and_file();
+        if let Ok(mut file) = File::open(&global_path) {
+            info!("Using {} for global file",global_path);
             self.load_global_from(&mut file)?;
         }
 
-        if let Ok(mut file) = File::open(self.ioconfig.get_local_path_and_filename()) {
+        let local_path = self.ioconfig.get_local_path_and_filename();
+        if let Ok(mut file) = File::open(&local_path) {
+            info!("Using {} for local file",local_path);
             self.load_local_from(&mut file)?;
         }
 
@@ -79,15 +83,19 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
     pub fn save(&self) -> Result<(),Error> {
         //! saves the setting to a file, uses the `save_to` buffer function
          
+        let global_path = self.ioconfig.get_path_and_file();
         // first makes sure all the directories exist before attempting to create
         // the file, so it has a place to make it
         fs::create_dir_all(self.ioconfig.get_path())?;
         // creates the file, now that we know the directory exists
-        let mut file = File::create(self.ioconfig.get_path_and_file())?;
+        info!("Saving global to {}",global_path);
+        let mut file = File::create(global_path)?;
         self.save_global_to(&mut file)?;
 
         if self.local.is_some() {
-            let mut local_file  = File::create(self.ioconfig.get_local_path_and_filename())?;
+            let local_path = self.ioconfig.get_local_path_and_filename();
+            info!("Saving local to {}",local_path);
+            let mut local_file  = File::create(local_path)?;
             self.save_local_to(&mut local_file)?;
         }
 

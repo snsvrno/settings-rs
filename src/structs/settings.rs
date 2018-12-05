@@ -36,6 +36,7 @@ impl<T> Settings<T> where T : Format + Clone {
 
     pub fn new(config : T) -> Settings<T> { 
         //! Creates an empty `Settings` from a configuration
+
         Settings { 
             global : HashMap::new(),
             ioconfig : config
@@ -50,9 +51,9 @@ impl<T> Settings<T> where T : Format + Clone {
         let mut new_hash = Settings::new(flat_hash.ioconfig.clone());
 
         for (key,value) in flat_hash.global.iter() {
-            // FIXME: do something with error / results when
-            // setting a value here from a flat settings.
-            let _ = new_hash.set_value(&key,&value);
+            if let Err(error) = new_hash.set_value(&key,&value) {
+                warn!("Error setting {}:{}, {}",key,value,error);
+            }
         } 
         
         new_hash
@@ -99,7 +100,12 @@ impl<T> Settings<T> where T : Format + Clone {
         //! be used for initalizing a new `Settings`, look at `create` and 
         //! `create_from` for that.
         
-        let mut file = File::open(self.ioconfig.get_path_and_file())?;
+        let path = self.ioconfig.get_path_and_file();
+        info!("Loading from {}",path);
+
+        let mut file = File::open(&path)?;
+        info!("{} loaded.",path);
+        
         self.load_from(&mut file)
     }
 
@@ -124,11 +130,13 @@ impl<T> Settings<T> where T : Format + Clone {
     pub fn save(&self) -> Result<(),Error> {
         //! saves the setting to a file, uses the `save_to` buffer function
 
+        let path = self.ioconfig.get_path_and_file();
+        info!("Saving to {}",path);
         // first makes sure all the directories exist before attempting to create
         // the file, so it has a place to make it
         fs::create_dir_all(self.ioconfig.get_path())?;
         // creates the file, now that we know the directory exists
-        let mut file = File::create(self.ioconfig.get_path_and_file())?;
+        let mut file = File::create(path)?;
         self.save_to(&mut file)
     }
 
@@ -171,7 +179,8 @@ impl<T> Settings<T> where T : Format + Clone {
         let path_tree : Vec<&str> = key_path.split(".").collect();
         let mut subtree : &Type = &Type::Text("Empty".to_string());
 
-        // TODO: need to fix this in order to have full unicode support. need to use .chars() instead of slice.
+        // TODO: need to fix this in order to have full unicode support. 
+        // need to use .chars() instead of slice.
         for i in 0..path_tree.len() {
             if i == 0 { 
                 if let Some(ref part) = self.global.get(&path_tree[i].to_string()) {
@@ -315,7 +324,9 @@ impl<T> Settings<T> where T : Format + Clone {
     }
 
     pub fn delete_file(&self) -> bool {
-        match fs::remove_file(self.ioconfig.get_path_and_file()){
+        let path = self.ioconfig.get_path_and_file();
+        info!("Deleting {}",path);
+        match fs::remove_file(path){
             Err(_) => false,
             Ok(_) => true,
         }

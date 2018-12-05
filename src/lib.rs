@@ -1,12 +1,8 @@
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate failure;
+#[macro_use] extern crate log;
 extern crate serde;
 extern crate dirs;
-
-//use std::fs::{File,create_dir_all};
-//use std::path::PathBuf;
-//use std::collections::HashMap;
-//use std::env;
 
 // public traits
 mod traits;
