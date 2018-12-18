@@ -289,11 +289,11 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
         }
     }
 
-    pub fn keys_local(&self) -> Vec<String> {
+    pub fn keys_global(&self) -> Vec<String> {
         self.global.keys()
     }
 
-    pub fn keys_glocal(&self) -> Vec<String> {
+    pub fn keys_local(&self) -> Vec<String> {
         if let Some(ref local) = self.local {
             local.keys()
         } else {
