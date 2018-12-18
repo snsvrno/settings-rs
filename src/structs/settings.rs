@@ -450,6 +450,17 @@ impl<T> Settings<T> where T : Format + Clone {
         }
     }
 
+    pub fn keys(&self) -> Vec<String> {
+        let mut keys : Vec<String> = Vec::new();
+        let flat = Settings::flatten(&self);
+        
+        for k in flat.global.keys() {
+            keys.push(k.to_string());
+        }
+
+        keys
+    }
+
     // flatten related functions //////////////////////////////////////////////////////
 
     fn get_flat_hash(&self) -> Settings<T> {
@@ -698,6 +709,27 @@ mod tests {
         assert_eq!(fluff.get_value("software.version"),Some(Type::Int(23)));
 
 
+    }
+
+    #[test]
+    fn keys() {
+        let mut flat_gen = Settings::new(Configuration{});
+        assert!(flat_gen.set_value("user.name","the username").is_ok());
+        assert!(flat_gen.set_value("user.email","someone@someplace.com").is_ok());
+        assert!(flat_gen.set_value("software.version",&23).is_ok());
+        assert!(flat_gen.set_value("software.update_available",&false).is_ok());
+
+        let mut count = 0;
+        let mut total_count = 0;
+        for k in flat_gen.keys() {
+            if k == "user.name" { count +=1; }
+            if k == "user.email" { count +=1; }
+            if k == "software.version" { count +=1; }
+            if k == "software.update_available" { count +=1; }
+            total_count += 1;
+        }
+        assert!(count == 4);
+        assert!(total_count == 4);
     }
 
     #[test]

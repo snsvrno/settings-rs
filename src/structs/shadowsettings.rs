@@ -288,6 +288,18 @@ impl<T> ShadowSettings<T> where T : Format + Clone {
             Ok(_) => true,
         }
     }
+
+    pub fn keys_local(&self) -> Vec<String> {
+        self.global.keys()
+    }
+
+    pub fn keys_glocal(&self) -> Vec<String> {
+        if let Some(ref local) = self.local {
+            local.keys()
+        } else {
+            Vec::new()
+        }
+    }
 }
 
 // tests ////////////////////////////////////////////////////////////////////////////////
