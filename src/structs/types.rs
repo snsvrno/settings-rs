@@ -107,19 +107,19 @@ impl fmt::Display for Type {
             Type::Text(ref value) => write!(f,"{}",value),
             Type::None => write!(f,"[BLANK]"),
             Type::Array(ref value) => {
-                write!(f,"[ ");
+                write!(f,"[ ")?;
                 for i in 0..value.len() {
-                    write!(f,"{}",value[i]);
+                    write!(f,"{}",value[i])?;
                     if i < value.len() - 1 { 
-                        write!(f,", ");
+                        write!(f,", ")?;
                     }
                 }
                 write!(f," ]")
             },
             Type::Complex(ref value) => {
-                write!(f,"{{ ");
+                write!(f,"{{ ")?;
                 for (k,v) in value {
-                    write!(f,"{} : {}, ", k,v);
+                    write!(f,"{} : {}, ", k,v)?;
                 }
                 write!(f," }}")
             }

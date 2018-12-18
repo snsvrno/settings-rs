@@ -227,7 +227,7 @@ pub trait Format {
         match dirs::home_dir() {
             // probably not the most graceful way to do this, but
             // i don't know a likely scenario where you won't have
-            //
+
             None => "".to_string(),
             Some(mut dir) => {
                 dir.push(format!("{}",self.folder()));
