@@ -39,12 +39,14 @@ use failure::Error;
 /// We could access the data like this.
 /// 
 /// ```rust
-/// use Settings;
-/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// # extern crate settingsfile;
+/// use settingsfile::Settings;
+/// use settingsfile::EmptyConfig; // dumb config for examples and testing
 /// 
-/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// let app_settings = Settings::new(EmptyConfig{});
 /// if let Some(value) = app_settings.get_value("user.name") {
-///     println!("username is {}",value); // would print "username is user's name"
+///     // prints "username is user's name"
+///     println!("username is {}",value); 
 /// }
 /// ```
 /// 
@@ -52,10 +54,11 @@ use failure::Error;
 /// something during running we can define a default value.
 /// 
 /// ```rust
-/// use Settings;
-/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// # extern crate settingsfile;
+/// use settingsfile::Settings;
+/// use settingsfile::EmptyConfig; // dumb config for examples and testing
 /// 
-/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// let app_settings = Settings::new(EmptyConfig{});
 /// let font_size = app_settings.get_value_or("font.size",&12);
 /// println!("Font size is {}",font_size); // will either be 12 or whatever the user sets.
 /// ```
@@ -79,10 +82,12 @@ use failure::Error;
 /// Using the fontsize example above.
 /// 
 /// ```rust
-/// use Settings;
-/// use structs::empty::EmptyConfig; // dumb config for examples and testing
+/// # extern crate settingsfile;
+/// use settingsfile::Settings;
+/// use settingsfile::Type;
+/// use settingsfile::EmptyConfig; // dumb config for examples and testing
 /// 
-/// let app_settings = settings::Settings::new(EmptyConfig{})
+/// let app_settings = Settings::new(EmptyConfig{});
 /// if let Type::Int(size) = app_settings.get_value_or("font.size",&12) {
 ///     println!("Setting font size to {}",size);
 /// } else {

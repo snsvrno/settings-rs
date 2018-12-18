@@ -24,29 +24,45 @@ pub type SettingsRaw = HashMap<String,Type>;
 /// [testing_with_ron](https://github.com/snsvrno/settingsfile-rs/blob/master/tests/testing_with_ron.rs)
 /// 
 /// ```rust
+/// # extern crate ron;
+/// # extern crate settingsfile;
+/// # #[macro_use] extern crate failure; 
+/// use failure::Error;
+/// use settingsfile::{Format,Settings,SettingsRaw,SupportedType};
+/// 
 /// #[derive(Clone)]
-/// struct EmptyConfig { }
+/// struct BasicConfig { }
 /// 
 /// // implementing the trait here, only doing the required methods
-/// impl Format for EmptyConfig {
+/// impl Format for BasicConfig {
 ///     fn filename(&self) -> String { "config.ron".to_string() }
 ///     fn folder(&self) -> String { ".config/app".to_string() }
 /// 
 ///     fn from_str<T>(&self,buffer:&str) -> Result<SettingsRaw,Error> 
 ///         where T : Format + Clone 
 ///     {
-///         ron::de::from_str(&buffer)
+///         let result : Result<SettingsRaw,ron::de::Error> = ron::de::from_str(&buffer);
+///
+///         match result {
+///             Ok(result) => Ok(result),
+///             Err(error) => Err(format_err!("{}",error)),
+///         }
 ///     }
 /// 
 ///     fn to_string<T:Sized>(&self,object:&T) -> Result<String,Error>
 ///         where T : SupportedType + serde::ser::Serialize, 
 ///     {
-///         ron::ser::to_string(object)
+///         let result : Result<String,ron::ser::Error> = ron::ser::to_string(object);
+/// 
+///         match result {
+///             Ok(result) => Ok(result),
+///             Err(error) => Err(format_err!("{}",error)),
+///         }
 ///     }
 /// }
 /// 
 /// fn main() {
-///     let settings = Settings::new(EmptyConfig{});
+///     let settings = Settings::new(BasicConfig{});
 /// }
 /// ```
 pub trait Format {
@@ -57,19 +73,25 @@ pub trait Format {
     /// 
     /// ~/{.application_name}/***{file_name}***.{extension}
     /// 
-    /// ```rust,ignore
+    /// ```rust
+    /// # struct Config { }
+    /// # impl Config {
     /// fn filename(&self) -> String {
     ///     "config".to_string()
     /// }
+    /// # }
     /// ```
     /// 
     /// The entire name + extension can be used here as well if 
     /// you don't want to use the [extension()](#method.extension) function.
     /// 
-    /// ```rust,ignore
+    /// ```rust
+    /// # struct Config { }
+    /// # impl Config {
     /// fn filename(&self) -> String {
     ///     "settings.toml".to_string()
     /// }
+    /// # }
     /// ``` 
     fn filename(&self) -> String;
 
@@ -85,10 +107,13 @@ pub trait Format {
     /// 
     /// ~/***.config/console_app***/config
     /// 
-    /// ```rust,ignore
+    /// ```rust
+    /// # struct Config { }
+    /// # impl Config {
     /// fn folder(&self) -> String {
     ///     ".config/console_app".to_string()
     /// }
+    /// # }
     /// ``` 
     fn folder(&self) -> String;
 
@@ -100,8 +125,16 @@ pub trait Format {
     /// Typically this is just a wrapped passthrough to the serde libray you are using. 
     /// Example using [ron-rs](https://github.com/alexcrichton/ron-rs):
     /// 
-    /// ```rust,ignore
-    /// fn to_string<T:?Sized>(&self,object:&T) -> Result<String,Error>
+    /// ```rust
+    /// # #[macro_use] extern crate failure;
+    /// # use failure::Error;
+    /// # extern crate settingsfile;
+    /// # extern crate ron;
+    /// # 
+    /// # struct Config { }
+    /// # impl Config {
+    /// # 
+    /// fn to_string<T:Sized>(&self,object:&T) -> Result<String,Error>
     ///   where T : settingsfile::SupportedType + serde::ser::Serialize,
     /// {
     ///   match ron::ser::to_string(object) {
@@ -109,6 +142,7 @@ pub trait Format {
     ///     Err(error) => Err(format_err!("{}",error))
     ///   }
     /// }
+    /// # }
     /// ```
     /// 
     /// You can see a working example in the test in the codebase 
@@ -121,16 +155,24 @@ pub trait Format {
     /// Typically this is a wrapped passthrough to the serde library you are using. 
     /// Example using [ron-rs](https://github.com/alexcrichton/ron-rs):
     /// 
-    /// ```rust,ignore
-    /// fn from_str<T>(&self,buffer:&str) -> Result<SettingsRaw,Error>
-    ///   where T : Format + Clone
+    /// ```rust
+    /// # #[macro_use] extern crate failure;
+    /// # use failure::Error;
+    /// # extern crate ron;
+    /// # extern crate settingsfile;
+    /// # struct Config { }
+    /// # impl Config {
+    /// 
+    /// fn from_str<T>(&self,buffer:&str) -> Result<settingsfile::SettingsRaw,Error>
+    ///   where T : settingsfile::Format + Clone
     /// {
-    /// let result : Result<SettingsRaw,ron::de::Error> = ron::de::from_str(&buffer);
+    /// let result : Result<settingsfile::SettingsRaw,ron::de::Error> = ron::de::from_str(&buffer);
     ///   match result {
     ///     Ok(result) => Ok(result),
     ///     Err(error) => Err(format_err!("{}",error)),
     ///   }
     /// }
+    /// # }
     /// ```
     /// 
     /// You can see a working example in the test in the codebase 
@@ -145,10 +187,13 @@ pub trait Format {
         //! 
         //! ~/{.application_name}/{file_name}.{***extension***}
         //!  
-        //! ```rust,ignore
+        //! ```rust
+        //! # struct Config { }
+        //! # impl Config {
         //! fn extension(&self) -> Option<String> {
         //!     Some("toml".to_string())
         //! }
+        //! # }
         //! ```
         //! 
         //! If not defined then no extension will be used for the file.

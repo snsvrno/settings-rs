@@ -27,3 +27,4 @@ mod structs;
 pub use structs::settings::Settings;
 pub use structs::shadowsettings::ShadowSettings;
 pub use structs::types::Type;
+pub use structs::empty::EmptyConfig;

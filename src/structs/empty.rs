@@ -4,7 +4,7 @@ use failure::Error;
 use SupportedType;
 
 #[derive(Clone)]
-struct EmptyConfig { }
+pub struct EmptyConfig { }
 impl Format for EmptyConfig {
     fn filename(&self) -> String { "settingsfile.text".to_string() }
     fn folder(&self) -> String { "settingsfile".to_string() }

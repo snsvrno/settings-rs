@@ -8,9 +8,16 @@ use std::fmt;
 /// `get_value`.
 /// 
 /// ```rust
-/// match setting::get_value("options") {
-///     Type::Text(option) => { }, // a single option selected
-///     Type::Array(options) => { }, // multiple options here,
+/// # extern crate settingsfile;
+/// # use settingsfile::Settings;
+/// # use settingsfile::EmptyConfig;
+/// use settingsfile::Type;
+/// 
+/// let settings = Settings::new(EmptyConfig{});
+/// 
+/// match settings.get_value("options") {
+///     Some(Type::Text(option)) => { }, // a single option selected
+///     Some(Type::Array(options)) => { }, // multiple options here,
 ///     _ => { }, // probably not valid because options in this case are strings
 /// }
 /// ```
