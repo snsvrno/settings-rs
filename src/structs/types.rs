@@ -54,6 +54,10 @@ impl Type {
 
     // pub fn move_it(self) -> Type { self }
 
+    pub fn to_string(&self) -> String {
+        format!("{}",self)
+    }
+
     pub fn flatten(&self , parent_key : Option<String>) -> Type {
         //! Flattens the `Type`. 
         //! 
